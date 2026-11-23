@@ -29,7 +29,8 @@ public class KaraokeView extends View {
         void onSeek(long ms);
     }
 
-    private static final long RESUME_AFTER_DRAG_MS = 2600;
+    /** How long a manual scroll stays put before it glides back to the live line. */
+    private static final long RESUME_AFTER_DRAG_MS = 1500;
 
     private final Paint linePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -43,7 +44,7 @@ public class KaraokeView extends View {
     private boolean showTranslation = true;
     private boolean seekEnabled = true;
     private boolean playing = false;
-    private int accent = 0xFF7BE8B3;
+    private int accent = 0xFFE8C9A0;
     private Listener listener;
 
     private long offsetMs = 0;
@@ -61,6 +62,30 @@ public class KaraokeView extends View {
     private long downAt = 0L;
     private long lastInteractionAt = 0L;
     private final int touchSlop;
+
+    /** Manual scroll offset in line units; decays back to 0 after a pause. */
+    private float dragLines = 0f;
+    private android.animation.ValueAnimator returnAnim;
+    private final Runnable returnToSong = new Runnable() {
+        @Override
+        public void run() {
+            if (dragging) return;
+            if (Math.abs(dragLines) < 0.02f) {
+                dragLines = 0f;
+                invalidate();
+                return;
+            }
+            cancelReturnAnim();
+            returnAnim = android.animation.ValueAnimator.ofFloat(dragLines, 0f);
+            returnAnim.setDuration(420);
+            returnAnim.setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f));
+            returnAnim.addUpdateListener(a -> {
+                dragLines = (float) a.getAnimatedValue();
+                invalidate();
+            });
+            returnAnim.start();
+        }
+    };
 
     private final Map<String, String> ellipsisCache = new HashMap<>();
     private int cacheWidth = -1;
@@ -80,9 +105,10 @@ public class KaraokeView extends View {
     }
 
     private void init() {
-        linePaint.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        fillPaint.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
-        transPaint.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+        Typeface serif = Fonts.typeface("serif");
+        linePaint.setTypeface(serif);
+        fillPaint.setTypeface(serif);
+        transPaint.setTypeface(serif);
         statusPaint.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
         statusPaint.setTextSize(sp(14));
         statusPaint.setColor(0x99FFFFFF);
@@ -109,8 +135,8 @@ public class KaraokeView extends View {
     public void setLyricFont(String key) {
         Typeface tf = Fonts.typeface(key);
         linePaint.setTypeface(tf);
-        fillPaint.setTypeface(Typeface.create(tf, Typeface.BOLD));
-        transPaint.setTypeface(Typeface.create(tf, Typeface.NORMAL));
+        fillPaint.setTypeface(tf);
+        transPaint.setTypeface(tf);
         ellipsisCache.clear();
         invalidate();
     }
@@ -176,7 +202,7 @@ public class KaraokeView extends View {
             linePaint.setColor(0xCCFFFFFF);
             linePaint.setTextAlign(Paint.Align.LEFT);
             float gap = ts * 1.7f;
-            float baseY = ts * 1.8f + scroll * gap;
+            float baseY = ts * 1.8f + (scroll + dragLines) * gap;
             int first = Math.max(0, (int) Math.floor(-baseY / gap));
             for (int i = first; i < lyrics.lines.size(); i++) {
                 float y = baseY + i * gap;
@@ -207,8 +233,8 @@ public class KaraokeView extends View {
         if (!scrollInitialised) {
             scroll = target;
             scrollInitialised = true;
-        } else if (!dragging && now - lastInteractionAt > RESUME_AFTER_DRAG_MS) {
-            // ease toward the live line instead of snapping
+        } else {
+            // the live line always eases smoothly; manual drag is added on top
             scroll += (target - scroll) * 0.18f;
         }
         if (scroll < -1f) scroll = -1f;
@@ -220,13 +246,14 @@ public class KaraokeView extends View {
         float top = -gap * 1.5f;
         float bottom = getHeight() + gap * 1.5f;
 
+        float viewCenter = scroll + dragLines;
         for (int i = 0; i < n; i++) {
-            float y = centerY + (i - scroll) * gap;
+            float y = centerY + (i - viewCenter) * gap;
             if (y < top) continue;
             if (y > bottom) break;
 
             Lyrics.Line l = lyrics.lines.get(i);
-            float dist = Math.abs(i - scroll);
+            float dist = Math.abs(i - viewCenter);
             float near = Math.max(0f, 1f - dist);          // 1 on the active line, 0 elsewhere
             float ts = base * (0.95f + 0.17f * near);
             linePaint.setTextSize(ts);
@@ -317,6 +344,20 @@ public class KaraokeView extends View {
         return result;
     }
 
+    private void cancelReturnAnim() {
+        if (returnAnim != null) {
+            returnAnim.cancel();
+            returnAnim = null;
+        }
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        removeCallbacks(returnToSong);
+        cancelReturnAnim();
+        super.onDetachedFromWindow();
+    }
+
     @Override
     public boolean onTouchEvent(MotionEvent e) {
         long now = SystemClock.uptimeMillis();
@@ -328,7 +369,9 @@ public class KaraokeView extends View {
                 tapCandidate = true;
                 dragging = false;
                 lastInteractionAt = now;
-                getParent().requestDisallowInterceptTouchEvent(true);
+                removeCallbacks(returnToSong);
+                cancelReturnAnim();
+                if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
                 return true;
 
             case MotionEvent.ACTION_MOVE: {
@@ -340,7 +383,10 @@ public class KaraokeView extends View {
                 }
                 if (dragging) {
                     float gap = lineGap();
-                    if (gap > 1f) scroll += dy / gap;
+                    if (gap > 1f) dragLines += dy / gap;
+                    float limit = Math.max(3f, lyrics == null ? 3f : lyrics.lines.size() + 2f);
+                    if (dragLines > limit) dragLines = limit;
+                    if (dragLines < -limit) dragLines = -limit;
                     lastInteractionAt = now;
                     invalidate();
                 }
@@ -353,10 +399,12 @@ public class KaraokeView extends View {
                         && Math.abs(e.getY() - downY) <= touchSlop;
                 dragging = false;
                 tapCandidate = false;
+                removeCallbacks(returnToSong);
+                postDelayed(returnToSong, RESUME_AFTER_DRAG_MS);
                 if (wasTap && lyrics != null && lyrics.synced && seekEnabled && listener != null) {
                     float gap = lineGap();
                     float centerY = getHeight() * 0.40f;
-                    int tapped = Math.round((e.getY() - centerY) / gap + scroll);
+                    int tapped = Math.round((e.getY() - centerY) / gap + scroll + dragLines);
                     int n = lyrics.lines.size();
                     if (tapped >= 0 && tapped < n) {
                         listener.onSeek(lyrics.lines.get(tapped).start);
@@ -371,6 +419,7 @@ public class KaraokeView extends View {
                 dragging = false;
                 tapCandidate = false;
                 lastInteractionAt = now;
+                postDelayed(returnToSong, RESUME_AFTER_DRAG_MS);
                 return true;
 
             default:

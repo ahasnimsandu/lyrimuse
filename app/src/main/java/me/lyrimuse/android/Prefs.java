@@ -95,7 +95,7 @@ public final class Prefs {
     }
 
     public static String lyricFont(Context c) {
-        return sp(c).getString("lyricFont", "sans");
+        return Fonts.normalise(sp(c).getString("lyricFont", "serif"));
     }
 
     public static void setLyricFont(Context c, String key) {

@@ -28,7 +28,8 @@ public class BackdropView extends View {
 
     private Bitmap art;
     private Bitmap blurred;
-    private int accent = 0xFF7BE8B3;
+    private int accent = 0xFFE8C9A0;
+    private int deep = 0xFF14100C;
     private boolean accentEnabled = true;
     private float density = 1f;
     private float zoom = 1f;
@@ -48,9 +49,17 @@ public class BackdropView extends View {
         return accent;
     }
 
+    /** Dark tint of the artwork colour, used behind cards. */
+    public int deep() {
+        return deep;
+    }
+
     public void setAccentEnabled(boolean on) {
         accentEnabled = on;
-        if (!on) accent = 0xFF7BE8B3;
+        if (!on) {
+            accent = 0xFFE8C9A0;
+            deep = 0xFF14100C;
+        }
         invalidate();
     }
 
@@ -74,30 +83,54 @@ public class BackdropView extends View {
         }
     }
 
+    /**
+     * Picks the artwork's dominant *vibrant* hue instead of averaging (averaging turns
+     * covers grey), then normalises it so accents stay legible on the dark theme.
+     */
     private int accentOf(Bitmap b) {
-        if (b == null) return 0xFF7BE8B3;
+        if (b == null) return 0xFFE8C9A0;
         try {
-            long r = 0, g = 0, bl = 0;
-            int n = 0;
-            int stepX = Math.max(1, b.getWidth() / 12);
-            int stepY = Math.max(1, b.getHeight() / 12);
+            final int buckets = 24;
+            int[] weight = new int[buckets];
+            long[] rSum = new long[buckets];
+            long[] gSum = new long[buckets];
+            long[] bSum = new long[buckets];
+            int stepX = Math.max(1, b.getWidth() / 24);
+            int stepY = Math.max(1, b.getHeight() / 24);
+            float[] hsv = new float[3];
             for (int y = 0; y < b.getHeight(); y += stepY) {
                 for (int x = 0; x < b.getWidth(); x += stepX) {
                     int c = b.getPixel(x, y);
-                    r += Color.red(c);
-                    g += Color.green(c);
-                    bl += Color.blue(c);
-                    n++;
+                    Color.colorToHSV(c, hsv);
+                    if (hsv[1] < 0.14f || hsv[2] < 0.12f) continue; // ignore greys and shadows
+                    int bucket = Math.min(buckets - 1, (int) (hsv[0] / (360f / buckets)));
+                    int w = 1 + (int) (hsv[1] * hsv[2] * 12f);
+                    weight[bucket] += w;
+                    rSum[bucket] += (long) Color.red(c) * w;
+                    gSum[bucket] += (long) Color.green(c) * w;
+                    bSum[bucket] += (long) Color.blue(c) * w;
                 }
             }
-            if (n == 0) return 0xFF7BE8B3;
-            float[] hsv = new float[3];
-            Color.RGBToHSV((int) (r / n), (int) (g / n), (int) (bl / n), hsv);
-            hsv[1] = Math.max(0.45f, Math.min(0.9f, hsv[1]));
-            hsv[2] = Math.max(0.72f, Math.min(0.98f, hsv[2]));
-            return Color.HSVToColor(hsv);
+            int best = -1;
+            for (int i = 0; i < buckets; i++) {
+                if (weight[i] > 0 && (best < 0 || weight[i] > weight[best])) best = i;
+            }
+            if (best < 0) return 0xFFE8C9A0;
+            int r = (int) (rSum[best] / weight[best]);
+            int g = (int) (gSum[best] / weight[best]);
+            int bl = (int) (bSum[best] / weight[best]);
+            Color.RGBToHSV(r, g, bl, hsv);
+            hsv[1] = Math.max(0.34f, Math.min(0.82f, hsv[1]));
+            hsv[2] = Math.max(0.74f, Math.min(0.96f, hsv[2]));
+            int bright = Color.HSVToColor(hsv);
+
+            float[] deepHsv = hsv.clone();
+            deepHsv[1] = Math.min(0.62f, hsv[1] * 0.9f);
+            deepHsv[2] = 0.13f;
+            deep = Color.HSVToColor(deepHsv);
+            return bright;
         } catch (Exception e) {
-            return 0xFF7BE8B3;
+            return 0xFFE8C9A0;
         }
     }
 
@@ -128,6 +161,13 @@ public class BackdropView extends View {
                 new float[]{0f, 0.52f, 1f}, Shader.TileMode.CLAMP);
         scrim.setShader(lg);
         canvas.drawRect(0, 0, w, h, scrim);
+
+        // vignette: darkens the edges so the centre feels lit and the lyrics stay readable
+        RadialGradient vignette = new RadialGradient(
+                w * 0.5f, h * 0.42f, Math.max(w, h) * 0.62f,
+                0x00000000, 0x66000000, Shader.TileMode.CLAMP);
+        glow.setShader(vignette);
+        canvas.drawRect(0, 0, w, h, glow);
     }
 
     @Override

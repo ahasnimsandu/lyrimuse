@@ -23,7 +23,7 @@ public class OverlayView extends View {
         void onLongPress();
     }
 
-    private static final int SUNG = 0xFF7BE8B3;
+    private static final int SUNG = 0xFFE8C9A0;
 
     private final Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -57,7 +57,7 @@ public class OverlayView extends View {
         stroke.setStyle(Paint.Style.STROKE);
         stroke.setStrokeWidth(dp(1));
         text.setColor(0xE6FFFFFF);
-        text.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        text.setTypeface(Fonts.typeface("serif"));
         fill.setColor(SUNG);
         fill.setTypeface(text.getTypeface());
         next.setColor(0x80FFFFFF);
@@ -84,7 +84,7 @@ public class OverlayView extends View {
     public void setLyricFont(String key) {
         android.graphics.Typeface tf = Fonts.typeface(key);
         text.setTypeface(tf);
-        fill.setTypeface(android.graphics.Typeface.create(tf, android.graphics.Typeface.BOLD));
+        fill.setTypeface(tf);
         next.setTypeface(tf);
         invalidate();
     }
@@ -128,7 +128,7 @@ public class OverlayView extends View {
         float ts = text.getTextSize();
 
         if (lyrics == null || lyrics.lines.isEmpty() || !lyrics.synced) {
-            String msg = fallback.isEmpty() ? "Lyrimuse — waiting for a song" : fallback;
+            String msg = fallback.isEmpty() ? "Lyriu — waiting for a song" : fallback;
             canvas.drawText(ellipsize(msg, text, width), left, baseY, text);
             return;
         }

@@ -45,6 +45,6 @@
         android:textSize="9sp"
         android:textStyle="bold"
         android:letterSpacing="0.08"
-        android:textColor="#7BE8B3"
+        android:textColor="#E8C9A0"
         android:text="WORD" />
 </LinearLayout>

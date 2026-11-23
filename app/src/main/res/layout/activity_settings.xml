@@ -35,7 +35,7 @@
                 android:textSize="9sp"
                 android:letterSpacing="0.18"
                 android:textStyle="bold"
-                android:textColor="#8FE8C0" />
+                android:textColor="#E8C9A0" />
 
             <Switch
                 android:id="@+id/swKeepAwake"
@@ -71,7 +71,7 @@
                 android:textSize="9sp"
                 android:letterSpacing="0.18"
                 android:textStyle="bold"
-                android:textColor="#8FE8C0" />
+                android:textColor="#E8C9A0" />
 
             <LinearLayout
                 android:id="@+id/rowFont"
@@ -97,7 +97,7 @@
                     android:layout_height="wrap_content"
                     android:text="Modern"
                     android:textSize="12sp"
-                    android:textColor="#7BE8B3" />
+                    android:textColor="#E8C9A0" />
             </LinearLayout>
 
             <TextView
@@ -127,7 +127,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textSize="11sp"
-                android:textColor="#7BE8B3"
+                android:textColor="#E8C9A0"
                 android:text="0 ms (in sync)" />
 
             <SeekBar
@@ -203,7 +203,7 @@
                 android:textSize="9sp"
                 android:letterSpacing="0.18"
                 android:textStyle="bold"
-                android:textColor="#8FE8C0" />
+                android:textColor="#E8C9A0" />
 
             <Switch
                 android:id="@+id/swOverlay"
@@ -227,7 +227,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textSize="11sp"
-                android:textColor="#7BE8B3"
+                android:textColor="#E8C9A0"
                 android:text="235%" />
 
             <SeekBar
@@ -250,7 +250,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textSize="11sp"
-                android:textColor="#7BE8B3"
+                android:textColor="#E8C9A0"
                 android:text="100%" />
 
             <SeekBar
@@ -277,7 +277,7 @@
                 android:textSize="9sp"
                 android:letterSpacing="0.18"
                 android:textStyle="bold"
-                android:textColor="#8FE8C0" />
+                android:textColor="#E8C9A0" />
 
             <TextView
                 android:id="@+id/cacheInfo"
@@ -329,7 +329,7 @@
             android:layout_marginTop="16dp"
             android:background="@drawable/pill_accent"
             android:textAllCaps="false"
-            android:textColor="#B9F5D6"
+            android:textColor="#F0D9BE"
             android:textSize="13sp"
             android:text="Done" />
 

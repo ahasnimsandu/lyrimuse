@@ -55,6 +55,10 @@ public class RoundedImageView extends View {
     }
 
     public void setBitmap(Bitmap b) {
+        if (b != null && b != bitmap) {
+            setAlpha(0.35f);
+            animate().alpha(1f).setDuration(320).start();
+        }
         bitmap = b;
         invalidate();
     }

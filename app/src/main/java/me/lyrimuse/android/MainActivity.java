@@ -33,7 +33,8 @@ public class MainActivity extends Activity {
     private ProgressBar progress;
     private LinearLayout permBar;
 
-    private int accent = 0xFF7BE8B3;
+    private int accent = 0xFFE8C9A0;
+    private LinearLayout controlsCard;
     private String lastMeta = "";
     private Bitmap lastArt;
 
@@ -59,6 +60,7 @@ public class MainActivity extends Activity {
         prev = findViewById(R.id.btnPrev);
         next = findViewById(R.id.btnNext);
         btnFloat = findViewById(R.id.btnFloat);
+        controlsCard = findViewById(R.id.controlsCard);
 
         karaoke.setListener(ms -> PlayerService.seekTo(ms));
 
@@ -140,6 +142,29 @@ public class MainActivity extends Activity {
         play.setBackgroundTintList(ColorStateList.valueOf(color));
         progress.setProgressTintList(ColorStateList.valueOf(color));
         btnFloat.setTextColor(color);
+        source.setTextColor(color);
+        eyebrow.setTextColor(mix(0xFFFFFFFF, color, 0.45f));
+
+        int card = mix(0xFF0B0D12, color, 0.14f);
+        if (controlsCard != null) {
+            controlsCard.setBackgroundTintList(ColorStateList.valueOf(card));
+        }
+        if (permBar != null) {
+            permBar.setBackgroundTintList(ColorStateList.valueOf(card));
+        }
+        int chrome = mix(0xFF06070B, color, 0.07f);
+        getWindow().setStatusBarColor(chrome);
+        getWindow().setNavigationBarColor(chrome);
+    }
+
+    /** Blends two ARGB colours, {@code amount} = share of {@code b}. */
+    private int mix(int a, int b, float amount) {
+        float t = Math.max(0f, Math.min(1f, amount));
+        int alpha = (int) (android.graphics.Color.alpha(a) * (1 - t) + android.graphics.Color.alpha(b) * t);
+        int red = (int) (android.graphics.Color.red(a) * (1 - t) + android.graphics.Color.red(b) * t);
+        int green = (int) (android.graphics.Color.green(a) * (1 - t) + android.graphics.Color.green(b) * t);
+        int blue = (int) (android.graphics.Color.blue(a) * (1 - t) + android.graphics.Color.blue(b) * t);
+        return android.graphics.Color.argb(alpha, red, green, blue);
     }
 
     private void updatePermissionBar() {

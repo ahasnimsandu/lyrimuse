@@ -154,7 +154,7 @@ public class LyricsFinderActivity extends Activity {
                 badge.setTextColor(0xFF8A90A0);
             } else if (c.wordLevel) {
                 badge.setText("WORD · " + c.lines);
-                badge.setTextColor(0xFF7BE8B3);
+                badge.setTextColor(0xFFE8C9A0);
             } else {
                 badge.setText("LINE · " + c.lines);
                 badge.setTextColor(0xFFB9C0CE);

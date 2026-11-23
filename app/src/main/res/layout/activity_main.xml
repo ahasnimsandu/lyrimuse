@@ -45,7 +45,7 @@
                     android:textSize="9sp"
                     android:letterSpacing="0.18"
                     android:textStyle="bold"
-                    android:textColor="#B9F5D6" />
+                    android:textColor="#F0D9BE" />
 
                 <TextView
                     android:id="@+id/title"
@@ -111,7 +111,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="38dp"
                     android:background="@drawable/pill_accent"
-                    android:textColor="#B9F5D6"
+                    android:textColor="#F0D9BE"
                     android:textAllCaps="false"
                     android:textSize="12sp"
                     android:text="Grant access" />
@@ -146,7 +146,7 @@
             android:maxLines="1"
             android:ellipsize="end"
             android:textSize="10sp"
-            android:textColor="#8FE8C0" />
+            android:textColor="#E8C9A0" />
 
         <me.lyrimuse.android.KaraokeView
             android:id="@+id/karaoke"
@@ -157,6 +157,7 @@
 
         <!-- glass controls -->
         <LinearLayout
+            android:id="@+id/controlsCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
@@ -184,7 +185,7 @@
                     android:layout_height="3dp"
                     android:layout_weight="1"
                     android:max="1000"
-                    android:progressTint="#7BE8B3"
+                    android:progressTint="#E8C9A0"
                     android:progressBackgroundTint="#33FFFFFF" />
 
                 <TextView

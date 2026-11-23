@@ -72,9 +72,16 @@ along instead of reading a Chinese translation. Latin lines are left untouched.
 
 ## Typography
 
-Settings → **Lyrics font** switches the player and floating overlay between Modern, Light, Serif,
-Condensed, Monospace and Heavy (system families, so the APK stays small). Text size, offset,
-translations and tap-to-seek sit next to it.
+Lyrics are set in an elegant **serif** by default (Settings → *Lyrics font* also offers Modern, Light
+and Condensed; the heavy/mono faces were removed). No fake-bold shadows, so nothing looks 3D.
+Text size, offset, translations and tap-to-seek sit next to it.
+
+## Colour
+
+Everything is dark-first, and the palette is sampled from the current cover: the dominant vibrant
+hue (not the grey average) drives the play button, progress bar, sung-lyric accent, source label,
+card tint, backdrop glow and the status/navigation bars. Accent sampling can be turned off in
+Settings, which falls back to warm champagne.
 
 ## Setup on the phone (one time)
 
