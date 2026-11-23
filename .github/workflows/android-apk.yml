@@ -43,15 +43,12 @@ jobs:
           "$SDKM" "platforms;android-34" "build-tools;34.0.0"
           echo "SDK packages: $(ls "$SDK/platforms" "$SDK/build-tools")"
 
-      - name: Toolchain (apksig + debug key)
+      - name: Toolchain (apksig)
         run: |
+          # The signing key is committed so CI and local builds produce
+          # upgrade-compatible APKs (public debug-style key, see README).
           curl -fsSL -o tools/apksig.jar \
             https://maven.aliyun.com/repository/google/com/android/tools/build/apksig/8.5.2/apksig-8.5.2.jar
-          mkdir -p "$HOME/.android"
-          keytool -genkeypair -keystore "$HOME/.android/debug.keystore" \
-            -storepass android -alias androiddebugkey -keypass android \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
 
       - name: Build APK
         run: |

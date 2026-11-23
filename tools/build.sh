@@ -12,7 +12,9 @@ ANDROID_JAR="${ANDROID_JAR:-$SDK/platforms/android-34/android.jar}"
 AAPT2="${AAPT2:-$SDK/build-tools/34.0.0/aapt2}"
 D8="${D8:-d8}"
 APKSIG_JAR="${APKSIG_JAR:-$ROOT/tools/apksig.jar}"
-KEYSTORE="${KEYSTORE:-$HOME/.android/debug.keystore}"
+KEYSTORE="${KEYSTORE:-$ROOT/tools/lyrimuse-signing.jks}"
+KEYSTORE_PASS="${KEYSTORE_PASS:-lyrimuse}"
+KEYSTORE_ALIAS="${KEYSTORE_ALIAS:-lyrimuse}"
 OUT="$ROOT/build"
 APP="$ROOT/app/src/main"
 
@@ -71,7 +73,7 @@ PY
 echo "[6/6] sign"
 javac -nowarn -classpath "$APKSIG_JAR" -d "$OUT/sign" "$ROOT/tools/Sign.java"
 java -classpath "$APKSIG_JAR:$OUT/sign" Sign \
-  "$OUT/base.apk" "$ROOT/Lyrimuse.apk" "$KEYSTORE" android androiddebugkey
+  "$OUT/base.apk" "$ROOT/Lyrimuse.apk" "$KEYSTORE" "$KEYSTORE_PASS" "$KEYSTORE_ALIAS"
 
 ls -lh "$ROOT/Lyrimuse.apk"
 echo "APK ready: $ROOT/Lyrimuse.apk"

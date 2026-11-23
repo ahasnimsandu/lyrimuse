@@ -54,6 +54,16 @@ curl -L -o tools/apksig.jar \
 `Lyrimuse.apk`. `local.properties` / Gradle files are kept so the project also opens in
 Android Studio, but the shipped APK was built with the script above.
 
+## Signing
+
+`tools/lyrimuse-signing.jks` is committed on purpose: CI and local builds sign with the same
+key (alias `lyrimuse`, password `lyrimuse`) so sideloaded updates install over each other.
+It is a public sideload key — anyone can sign an update for this app id, so do not use it for
+a Play Store release; generate a private keystore and pass `KEYSTORE`, `KEYSTORE_PASS`,
+`KEYSTORE_ALIAS` to `build.sh` instead.
+
+APKs signed before this key was introduced need one uninstall before upgrading.
+
 ## Layout
 
 | Path | Role |
