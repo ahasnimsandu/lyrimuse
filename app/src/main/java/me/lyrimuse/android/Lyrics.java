@@ -94,6 +94,54 @@ public class Lyrics {
         }
     }
 
+    // ---- lyric language -------------------------------------------------------
+
+    /** "english" (default), "original" or "romanized". Set before parsing a file. */
+    private static volatile String languageMode = "english";
+
+    public static void setLanguage(String mode) {
+        languageMode = normalizeMode(mode);
+    }
+
+    public static String language() {
+        return languageMode;
+    }
+
+    public static String normalizeMode(String mode) {
+        if ("original".equals(mode) || "romanized".equals(mode)) return mode;
+        return "english";
+    }
+
+    /**
+     * Applies the chosen language presentation at parse time. English is the default;
+     * "original" keeps every script and its translation, "romanized" keeps every line
+     * but writes Korean as Revised Romanization.
+     */
+    public void applyLanguage() {
+        String mode = languageMode;
+        if ("english".equals(mode)) {
+            applyEnglish();
+            return;
+        }
+        boolean romanize = "romanized".equals(mode);
+        List<Line> keep = new ArrayList<>();
+        for (Line l : lines) {
+            String text = l.text == null ? "" : l.text;
+            if (romanize && Romanizer.hasHangul(text)) {
+                text = Romanizer.romanize(text).replaceAll("\\s+", " ").trim();
+            }
+            text = text.trim();
+            if (text.isEmpty()) continue;
+            l.text = text;
+            l.trans = l.trans == null ? "" : l.trans.trim();
+            keep.add(l);
+        }
+        if (keep.size() != lines.size()) {
+            lines.clear();
+            lines.addAll(keep);
+        }
+    }
+
     /**
      * English-only presentation, the app default: no Chinese, Japanese, Korean, Cyrillic,
      * Thai or Arabic ever reaches the screen. Korean is shown as its romanised reading, a
@@ -256,7 +304,7 @@ public class Lyrics {
         if (translation != null && !translation.trim().isEmpty()) {
             out.attachTranslation(translation);
         }
-        out.applyEnglish();
+        out.applyLanguage();
         return out.lines.isEmpty() ? null : out;
     }
 
@@ -296,7 +344,7 @@ public class Lyrics {
         if (out.lines.isEmpty()) return null;
         out.finish();
         if (translation != null && !translation.trim().isEmpty()) out.attachTranslation(translation);
-        out.applyEnglish();
+        out.applyLanguage();
         return out.lines.isEmpty() ? null : out;
     }
 
@@ -313,7 +361,7 @@ public class Lyrics {
             l.end = 0;
             out.lines.add(l);
         }
-        out.applyEnglish();
+        out.applyLanguage();
         return out.lines.isEmpty() ? null : out;
     }
 
@@ -399,7 +447,7 @@ public class Lyrics {
             }
             out.lines.add(l);
         }
-        out.applyEnglish();
+        out.applyLanguage();
         return out.lines.isEmpty() ? null : out;
     }
 }

@@ -16,6 +16,9 @@ public class OverlayService extends Service {
 
     public static volatile boolean running = false;
 
+    private static final long TICK_PLAYING_MS = 80;
+    private static final long TICK_IDLE_MS = 320;
+
     private WindowManager wm;
     private OverlayView view;
     private WindowManager.LayoutParams lp;
@@ -56,12 +59,15 @@ public class OverlayService extends Service {
                         | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT);
         lp.gravity = Gravity.TOP | Gravity.START;
-        lp.x = 0;
-        lp.y = (int) (72 * getResources().getDisplayMetrics().density);
+        int savedX = Prefs.overlayX(this);
+        int savedY = Prefs.overlayY(this);
+        lp.x = savedX != Integer.MIN_VALUE ? savedX : 0;
+        lp.y = savedY != Integer.MIN_VALUE ? savedY : (int) (72 * getResources().getDisplayMetrics().density);
         lp.windowAnimations = android.R.style.Animation_Toast;
         lp.alpha = Math.max(0.25f, Prefs.overlayOpacity(this) / 255f);
         view.setTextScale(Prefs.overlayScale(this));
         view.setLyricFont(Prefs.lyricFont(this));
+        view.setTranslationEnabled(Prefs.translation(this));
 
         view.setListener(new OverlayView.Listener() {
             @Override
@@ -72,6 +78,13 @@ public class OverlayService extends Service {
                     wm.updateViewLayout(view, lp);
                 } catch (Exception ignored) {
                 }
+            }
+
+            @Override
+            public void onDragEnd(int x, int y) {
+                // remember where the bar was put, so a reboot or service restart doesn't
+                // snap it back to the top of the screen
+                Prefs.setOverlayPosition(OverlayService.this, lp.x, lp.y);
             }
 
             @Override
@@ -112,13 +125,14 @@ public class OverlayService extends Service {
                 }
                 view.setTextScale(Prefs.overlayScale(OverlayService.this));
                 view.setLyricFont(Prefs.lyricFont(OverlayService.this));
+                view.setTranslationEnabled(Prefs.translation(OverlayService.this));
                 String fallback = PlayerService.title.isEmpty()
-                        ? "Lyrimuse — waiting for a song"
+                        ? "Lyriu — waiting for a song"
                         : PlayerService.title + (PlayerService.artist.isEmpty() ? "" : " — " + PlayerService.artist);
                 view.setState(PlayerService.lyrics, PlayerService.positionMs(),
-                        Prefs.offsetMs(OverlayService.this), fallback);
+                        PlayerService.effectiveOffset(OverlayService.this), fallback);
             }
-            handler.postDelayed(this, 80);
+            handler.postDelayed(this, PlayerService.playing ? TICK_PLAYING_MS : TICK_IDLE_MS);
         }
     };
 

@@ -16,7 +16,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
-import android.widget.ProgressBar;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -30,8 +30,9 @@ public class MainActivity extends Activity {
     private KaraokeView karaoke;
     private TextView title, artist, source, eyebrow, permTitle, elapsed, total, btnFloat;
     private ImageButton play, prev, next;
-    private ProgressBar progress;
+    private SeekBar progress;
     private LinearLayout permBar;
+    private boolean scrubbing;
 
     private int accent = 0xFFE8C9A0;
     private LinearLayout controlsCard;
@@ -65,6 +66,27 @@ public class MainActivity extends Activity {
 
         karaoke.setListener(ms -> PlayerService.seekTo(ms));
 
+        progress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar bar, int value, boolean fromUser) {
+                if (!fromUser) return;
+                long dur = PlayerService.duration();
+                if (dur > 0) elapsed.setText(fmt(value * dur / 1000));
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar bar) {
+                scrubbing = true;
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar bar) {
+                scrubbing = false;
+                long dur = PlayerService.duration();
+                if (dur > 0) PlayerService.seekTo(bar.getProgress() * dur / 1000);
+            }
+        });
+
         play.setOnClickListener(v -> PlayerService.togglePlay());
         prev.setOnClickListener(v -> PlayerService.skipPrevious());
         next.setOnClickListener(v -> PlayerService.skipNext());
@@ -90,6 +112,33 @@ public class MainActivity extends Activity {
 
         applyAccent(accent);
         PlayerService.start(this);
+        widenForLargeScreens();
+        checkForUpdate();
+    }
+
+    /** Tablets, foldables and landscape phones get a centred column instead of edge-to-edge. */
+    private void widenForLargeScreens() {
+        View root = findViewById(R.id.root);
+        if (root == null) return;
+        if (getResources().getConfiguration().screenWidthDp < 600) return;
+        int pad = (int) (getResources().getDisplayMetrics().widthPixels * 0.12f);
+        root.setPadding(pad, root.getPaddingTop(), pad, root.getPaddingBottom());
+    }
+
+    private void checkForUpdate() {
+        final TextView bar = findViewById(R.id.updateBar);
+        if (bar == null) return;
+        Updates.check(this, (version, url) -> {
+            if (isFinishing() || isDestroyed()) return;
+            bar.setText("Lyriu " + version + " is available · Tap to update");
+            bar.setVisibility(View.VISIBLE);
+            bar.setOnClickListener(v -> {
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+                } catch (Exception ignored) {
+                }
+            });
+        });
     }
 
     private void toggleOverlay() {
@@ -142,6 +191,7 @@ public class MainActivity extends Activity {
         karaoke.setAccent(color);
         play.setBackgroundTintList(ColorStateList.valueOf(color));
         progress.setProgressTintList(ColorStateList.valueOf(color));
+        progress.setThumbTintList(ColorStateList.valueOf(color));
         btnFloat.setTextColor(color);
         source.setTextColor(color);
         eyebrow.setTextColor(mix(0xFFFFFFFF, color, 0.45f));
@@ -225,15 +275,19 @@ public class MainActivity extends Activity {
         long dur = PlayerService.duration();
         karaoke.setPlaying(PlayerService.playing);
         karaoke.setState(PlayerService.lyrics, pos, PlayerService.status,
-                Prefs.textScale(this), Prefs.translation(this), Prefs.offsetMs(this));
+                Prefs.textScale(this), Prefs.translation(this), PlayerService.effectiveOffset(this));
 
         if (dur > 0) {
-            progress.setProgress((int) Math.min(1000, pos * 1000 / dur));
-            elapsed.setText(fmt(pos));
+            if (!scrubbing) {
+                progress.setProgress((int) Math.min(1000, pos * 1000 / dur));
+                elapsed.setText(fmt(pos));
+            }
             total.setText(fmt(dur));
         } else {
-            progress.setProgress(0);
-            elapsed.setText("0:00");
+            if (!scrubbing) {
+                progress.setProgress(0);
+                elapsed.setText("0:00");
+            }
             total.setText("0:00");
         }
     }

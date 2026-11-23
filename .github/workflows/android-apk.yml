@@ -43,6 +43,11 @@ jobs:
           "$SDKM" "platforms;android-34" "build-tools;34.0.0"
           echo "SDK packages: $(ls "$SDK/platforms" "$SDK/build-tools")"
 
+      - name: Unit tests (lyric parsers)
+        run: |
+          export ANDROID_JAR="$ANDROID_SDK_ROOT/platforms/android-34/android.jar"
+          ./tools/test.sh
+
       - name: Toolchain (apksig)
         run: |
           # The signing key is committed so CI and local builds produce

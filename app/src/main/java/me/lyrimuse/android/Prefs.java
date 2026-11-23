@@ -126,4 +126,68 @@ public final class Prefs {
     public static void setOffsetMs(Context c, long v) {
         sp(c).edit().putLong("offsetMs", v).apply();
     }
+
+    // ---- per-song sync offset -------------------------------------------------
+
+    /** Extra offset for one song, on top of the global one. Keyed by the cache key. */
+    public static long songOffset(Context c, String songKey) {
+        if (songKey == null || songKey.isEmpty()) return 0;
+        return sp(c).getLong("songOff_" + songKey, 0);
+    }
+
+    public static void setSongOffset(Context c, String songKey, long v) {
+        if (songKey == null || songKey.isEmpty()) return;
+        sp(c).edit().putLong("songOff_" + songKey, v).apply();
+    }
+
+    // ---- lyric language -------------------------------------------------------
+
+    /** "english" (default), "original" or "romanized". */
+    public static String lyricLanguage(Context c) {
+        String v = sp(c).getString("lyricLanguage", "english");
+        if ("original".equals(v) || "romanized".equals(v)) return v;
+        return "english";
+    }
+
+    public static void setLyricLanguage(Context c, String mode) {
+        sp(c).edit().putString("lyricLanguage", mode).apply();
+    }
+
+    // ---- floating bar placement ----------------------------------------------
+
+    /** Integer.MIN_VALUE means "never moved"; the service then uses its default position. */
+    public static int overlayX(Context c) {
+        return sp(c).getInt("overlayX", Integer.MIN_VALUE);
+    }
+
+    public static int overlayY(Context c) {
+        return sp(c).getInt("overlayY", Integer.MIN_VALUE);
+    }
+
+    public static void setOverlayPosition(Context c, int x, int y) {
+        sp(c).edit().putInt("overlayX", x).putInt("overlayY", y).apply();
+    }
+
+    // ---- update check ---------------------------------------------------------
+
+    public static long updateCheckedAt(Context c) {
+        return sp(c).getLong("updateCheckedAt", 0);
+    }
+
+    public static void setUpdateCheckedAt(Context c, long v) {
+        sp(c).edit().putLong("updateCheckedAt", v).apply();
+    }
+
+    public static String updateVersion(Context c) {
+        return sp(c).getString("updateVersion", "");
+    }
+
+    public static String updateUrl(Context c) {
+        return sp(c).getString("updateUrl", "");
+    }
+
+    public static void setUpdate(Context c, String version, String url) {
+        sp(c).edit().putString("updateVersion", version == null ? "" : version)
+                .putString("updateUrl", url == null ? "" : url).apply();
+    }
 }

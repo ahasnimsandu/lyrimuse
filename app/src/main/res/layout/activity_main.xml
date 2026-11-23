@@ -10,6 +10,7 @@
         android:layout_height="match_parent" />
 
     <LinearLayout
+        android:id="@+id/root"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
@@ -129,6 +130,20 @@
             </LinearLayout>
         </LinearLayout>
 
+        <TextView
+            android:id="@+id/updateBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/pill_accent"
+            android:gravity="center"
+            android:padding="10dp"
+            android:textColor="#F0D9BE"
+            android:textSize="12sp"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone" />
+
         <!-- big artwork -->
         <me.lyrimuse.android.RoundedImageView
             android:id="@+id/coverLarge"
@@ -178,15 +193,17 @@
                     android:textColor="#9AA1B0"
                     android:text="0:00" />
 
-                <ProgressBar
+                <SeekBar
                     android:id="@+id/progress"
-                    style="?android:attr/progressBarStyleHorizontal"
                     android:layout_width="0dp"
-                    android:layout_height="3dp"
+                    android:layout_height="30dp"
                     android:layout_weight="1"
                     android:max="1000"
+                    android:splitTrack="false"
                     android:progressTint="#E8C9A0"
-                    android:progressBackgroundTint="#33FFFFFF" />
+                    android:progressBackgroundTint="#33FFFFFF"
+                    android:thumbTint="#E8C9A0"
+                    android:contentDescription="Playback position" />
 
                 <TextView
                     android:id="@+id/total"

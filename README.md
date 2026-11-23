@@ -20,12 +20,17 @@ and allow "install unknown apps".
   word timings and community translations) and LRCLIB (global, synced + plain). Word-level beats
   line-level; duration and title/artist fuzzy matching pick the right recording.
 - **Translations** under each line when the source has them (toggle).
-- **Floating overlay** over other apps: current line + next line, word fill, draggable,
+- **Floating overlay** over other apps: current line + next line, word-level fill,
+  optional translation, draggable with its position remembered across restarts,
   tap = open the app, long-press = hide. Same idea as Lyrimuse's desktop overlay.
 - **Full karaoke window**: scrolling lyrics, translations, progress, prev/play/next, tap any lyric
   line to seek there.
 - **Offline**: every matched song is cached on disk; replay works with no network.
-- **Per-song-free global controls**: sync offset (±2 s), text size, translation toggle.
+- **Per-song sync**: a global ±2 s offset plus a separate shift remembered for the exact
+  recording (album and length included), because every lyric file drifts differently.
+- **Updates without a store**: once every few hours the app compares itself with the
+  project's GitHub releases and offers the newer APK.
+- **Notification controls**: the shade shows the current lyric line with previous/play/next.
 
 ## Look and feel
 
@@ -50,6 +55,9 @@ one to attach it to the current song (it is cached, so it survives song changes 
 When a song has no lyrics at all, the app re-runs detection a few times (15 s apart, max 4) while
 the song plays, instead of staying empty.
 
+**Re-match** drops only the current song's cached file and fetches it again; the rest of the
+offline library is untouched.
+
 ## Lyric engines
 
 | Engine | Coverage | Timing |
@@ -69,11 +77,20 @@ foreign original is replaced by its English translation when one exists, a Chine
 an English line is dropped, and a line with no English version is left out of the page. A song with no
 English lyrics at all reports *No lyrics found*.
 
+Settings → **Lyric language** changes that default: *English only*, *Original + translation* (every
+script as published) or *Romanised (Korean)* (original scripts, with Hangul written as Revised
+Romanization). The language is part of the offline cache key, so switching it re-fetches the current
+song instead of showing a file filtered for the other mode.
+
+Sync is adjustable twice: the global **Sync offset** shifts every song, and **This song only** stores a
+separate shift for the exact recording (keyed by title, artist, album and length), since each lyric
+file drifts differently.
+
 Drag the lyrics to browse them: auto-follow pauses while you scroll and for a couple of seconds
-afterwards, then eases back to the live line instead of snapping. Tapping a line seeks there. The
-easing is time-based, so it feels the same on 60 Hz and 120 Hz screens, and the fill runs at 60 fps
-from the playback clock so it stays smooth between player updates. Pausing the song freezes the
-lyrics exactly where they are.
+afterwards, then eases back to the live line instead of snapping. Tapping a line seeks there, and the
+progress bar itself is a scrubber. The easing is time-based, so it feels the same on 60 Hz and 120 Hz
+screens, and the fill runs at 60 fps from the playback clock so it stays smooth between player
+updates. Pausing the song freezes the lyrics exactly where they are.
 
 ## Typography
 
@@ -113,7 +130,12 @@ curl -L -o tools/apksig.jar \
 ```
 
 `build.sh` runs `aapt2 compile/link → javac → d8 → zip → apksig (v1+v2+v3)` and writes
-`Lyriu.apk`. `local.properties` / Gradle files are kept so the project also opens in
+`Lyriu.apk`.
+
+`./tools/test.sh` runs the plain-JVM tests for the parsers, language modes and cache keys (no
+emulator, no Gradle); CI runs them before packaging. The app version comes from an exact
+`android-v*` tag when there is one, otherwise from `version.txt`, and `versionCode` is derived
+from it (1.7.0 → 10700) so sideloaded updates stay upgradeable. `local.properties` / Gradle files are kept so the project also opens in
 Android Studio, but the shipped APK was built with the script above.
 
 ## Signing
@@ -137,6 +159,8 @@ APKs signed before this key was introduced need one uninstall before upgrading.
 | `KaraokeView` | scrolling karaoke renderer with word/character fill, tap-to-seek |
 | `OverlayService` / `OverlayView` | floating always-on-top lyric bar |
 | `MainActivity` / `SettingsActivity` | UI, permissions, preferences |
+| `Updates` | GitHub release check for the next APK |
+| `tools/test.sh` | JVM tests for parsers, language modes and cache keys |
 
 ## Not ported
 

@@ -92,6 +92,7 @@ public class KaraokeView extends View {
     private Lyrics cacheLyrics;
     private long lastFrameAt = 0L;
     private boolean hasTranslationText = false;
+    private String lastSpokenLine = "";
 
     public KaraokeView(Context c) {
         super(c);
@@ -115,6 +116,7 @@ public class KaraokeView extends View {
         statusPaint.setColor(0x99FFFFFF);
         // Hardware acceleration: a full-screen software layer (needed only for glow
         // shadows) is what made scrolling and the word fill stutter on device.
+        setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
     }
 
     private float dp(float v) {
@@ -171,6 +173,21 @@ public class KaraokeView extends View {
         scale = textScale;
         showTranslation = translation;
         offsetMs = offset;
+
+        // Canvas text is invisible to TalkBack: expose the active line as the view's
+        // accessible text instead of the whole page being one blank node.
+        String spoken = null;
+        if (l != null && l.synced && !l.lines.isEmpty()) {
+            int i = l.indexAt(pos - offset);
+            if (i < 0) i = 0;
+            spoken = l.lines.get(Math.min(i, l.lines.size() - 1)).text;
+        } else if (l == null) {
+            spoken = status;
+        }
+        if (spoken != null && !spoken.equals(lastSpokenLine)) {
+            lastSpokenLine = spoken;
+            setContentDescription(spoken);
+        }
         // keep the frame loop alive while the song plays
         if (playing) postInvalidateOnAnimation();
         invalidate();

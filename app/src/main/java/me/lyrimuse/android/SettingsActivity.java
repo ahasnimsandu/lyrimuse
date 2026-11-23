@@ -37,6 +37,10 @@ public class SettingsActivity extends Activity {
         TextView opacityValue = findViewById(R.id.opacityValue);
         SeekBar overlaySize = findViewById(R.id.seekOverlaySize);
         TextView overlaySizeValue = findViewById(R.id.overlaySizeValue);
+        SeekBar songOffset = findViewById(R.id.seekSongOffset);
+        TextView songOffsetValue = findViewById(R.id.songOffsetValue);
+        Button resetSong = findViewById(R.id.btnResetSong);
+        TextView languageValue = findViewById(R.id.languageValue);
         TextView cacheInfo = findViewById(R.id.cacheInfo);
         TextView version = findViewById(R.id.version);
 
@@ -58,6 +62,48 @@ public class SettingsActivity extends Activity {
         overlaySize.setProgress(Math.round((Prefs.overlayScale(this) - 0.7f) * 100));
         overlaySizeValue.setText(Math.round(Prefs.overlayScale(this) * 100) + "%");
         cacheInfo.setText(Cache.count(this) + " songs cached offline");
+
+        languageValue.setText(languageLabel(Prefs.lyricLanguage(this)));
+        findViewById(R.id.rowLanguage).setOnClickListener(v ->
+                new android.app.AlertDialog.Builder(this)
+                        .setTitle("Lyrics language")
+                        .setSingleChoiceItems(LANGUAGE_LABELS, languageIndex(Prefs.lyricLanguage(this)),
+                                (dialog, which) -> {
+                                    Prefs.setLyricLanguage(this, LANGUAGE_KEYS[which]);
+                                    languageValue.setText(LANGUAGE_LABELS[which]);
+                                    dialog.dismiss();
+                                    // the cache key includes the language, so this re-fetches
+                                    // the current song in the new presentation
+                                    PlayerService.refreshLyrics();
+                                })
+                        .show());
+
+        // per-song offset: every lyric file drifts differently, so a global shift only
+        // ever averages those errors out
+        final String songKey = Cache.key(this, PlayerService.title, PlayerService.artist,
+                PlayerService.album, PlayerService.duration());
+        final boolean hasSong = !PlayerService.title.isEmpty();
+        long perSong = hasSong ? Prefs.songOffset(this, songKey) : 0;
+        songOffset.setEnabled(hasSong);
+        resetSong.setEnabled(hasSong);
+        songOffset.setProgress(clamp(2000 + (int) (perSong / 50), 0, 4000));
+        songOffsetValue.setText(hasSong ? offsetLabel(perSong) : "No song playing");
+        songOffset.setOnSeekBarChangeListener(new SimpleSeek() {
+            @Override
+            public void onProgressChanged(SeekBar sb, int value, boolean fromUser) {
+                if (!fromUser || !hasSong) return;
+                long ms = (value - 2000L) * 50L;
+                // recompute: the language may have changed the cache key since onCreate
+                Prefs.setSongOffset(SettingsActivity.this, currentSongKey(), ms);
+                songOffsetValue.setText(offsetLabel(ms));
+            }
+        });
+        resetSong.setOnClickListener(v -> {
+            if (!hasSong) return;
+            Prefs.setSongOffset(SettingsActivity.this, currentSongKey(), 0);
+            songOffset.setProgress(2000);
+            songOffsetValue.setText(offsetLabel(0));
+        });
 
         keepAwake.setOnCheckedChangeListener((b, on) -> Prefs.setKeepAwake(this, on));
         tapSeek.setOnCheckedChangeListener((b, on) -> Prefs.setTapSeek(this, on));
@@ -146,6 +192,31 @@ public class SettingsActivity extends Activity {
         } catch (PackageManager.NameNotFoundException ignored) {
         }
         version.setText("Lyriu " + v + " · GPL-3.0 · lyrics by NetEase, LRCLIB & QQ Music");
+    }
+
+    private static final String[] LANGUAGE_KEYS = {"english", "original", "romanized"};
+    private static final String[] LANGUAGE_LABELS = {
+            "English only", "Original + translation", "Romanised (Korean)"
+    };
+
+    private static int languageIndex(String mode) {
+        for (int i = 0; i < LANGUAGE_KEYS.length; i++) {
+            if (LANGUAGE_KEYS[i].equals(mode)) return i;
+        }
+        return 0;
+    }
+
+    private static String languageLabel(String mode) {
+        return LANGUAGE_LABELS[languageIndex(mode)];
+    }
+
+    private static int clamp(int v, int lo, int hi) {
+        return Math.max(lo, Math.min(hi, v));
+    }
+
+    private String currentSongKey() {
+        return Cache.key(this, PlayerService.title, PlayerService.artist,
+                PlayerService.album, PlayerService.duration());
     }
 
     private String offsetLabel(long ms) {

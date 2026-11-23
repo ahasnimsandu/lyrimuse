@@ -18,6 +18,27 @@ KEYSTORE_ALIAS="${KEYSTORE_ALIAS:-lyrimuse}"
 OUT="$ROOT/build"
 APP="$ROOT/app/src/main"
 
+# Version follows an exact android-v* tag (that is what CI builds); local builds fall
+# back to version.txt. versionCode is derived from the version so 1.7.0 -> 10700, which
+# keeps every release a valid upgrade of the old 1..7 codes.
+VERSION_NAME="${VERSION_NAME:-}"
+EXACT_TAG="$(git -C "$ROOT" describe --tags --exact-match --match 'android-v*' 2>/dev/null || true)"
+if [ -z "$VERSION_NAME" ] && [ -n "$EXACT_TAG" ]; then
+  VERSION_NAME="${EXACT_TAG#android-v}"
+fi
+if [ -z "$VERSION_NAME" ] && [ -f "$ROOT/version.txt" ]; then
+  VERSION_NAME="$(head -1 "$ROOT/version.txt" | tr -d '[:space:]')"
+fi
+VERSION_NAME="${VERSION_NAME:-1.7.0}"
+if [ -z "${VERSION_CODE:-}" ]; then
+  V_MAJOR="$(echo "$VERSION_NAME" | cut -d. -f1)"
+  V_MINOR="$(echo "$VERSION_NAME" | cut -d. -f2)"
+  V_PATCH="$(echo "$VERSION_NAME" | cut -d. -f3 | cut -d- -f1)"
+  V_MAJOR="${V_MAJOR:-0}"; V_MINOR="${V_MINOR:-0}"; V_PATCH="${V_PATCH:-0}"
+  VERSION_CODE=$((V_MAJOR * 10000 + V_MINOR * 100 + V_PATCH))
+fi
+echo "[0/6] version $VERSION_NAME ($VERSION_CODE)${EXACT_TAG:+ from tag $EXACT_TAG}"
+
 rm -rf "$OUT"
 mkdir -p "$OUT/gen" "$OUT/classes" "$OUT/dex" "$OUT/sign"
 
@@ -43,8 +64,8 @@ PY
   --java "$OUT/gen" \
   --min-sdk-version 26 \
   --target-sdk-version 34 \
-  --version-code 7 \
-  --version-name 1.6.0 \
+  --version-code "$VERSION_CODE" \
+  --version-name "$VERSION_NAME" \
   --auto-add-overlay
 
 echo "[3/6] javac"

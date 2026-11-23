@@ -19,6 +19,7 @@ import android.media.session.PlaybackState;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.os.SystemClock;
 import android.view.KeyEvent;
 import android.provider.Settings;
@@ -78,6 +79,13 @@ public class PlayerService extends Service {
 
     public static long duration() {
         return durationMs;
+    }
+
+    /** Global offset plus the shift stored for this exact song. */
+    public static long effectiveOffset(Context c) {
+        if (c == null) return 0;
+        String key = Cache.key(c, title, artist, album, durationMs);
+        return Prefs.offsetMs(c) + Prefs.songOffset(c, key);
     }
 
     public static boolean hasNotificationAccess(Context c) {
@@ -215,17 +223,25 @@ public class PlayerService extends Service {
         lyrics = c.lyrics;
         source = "Manual · " + c.source;
         status = "";
-        Cache.save(s.getApplicationContext(), Cache.key(title, artist), c.lyrics);
+        Context ctx = s.getApplicationContext();
+        Lyrics.setLanguage(Prefs.lyricLanguage(ctx));
+        Cache.save(ctx, Cache.key(ctx, title, artist, album, durationMs), c.lyrics);
         Log.i(TAG, "manual lyrics applied: " + c.title + " / " + c.artist + " (" + c.source + ")");
         s.updateForeground();
     }
 
-    /** Force a fresh lyric lookup for the current song (ignores the offline cache). */
+    /**
+     * Force a fresh lyric lookup for the current song. Only this song's cached copy is
+     * dropped — the old build wiped every offline lyric for the whole library here.
+     */
     public static void refreshLyrics() {
         PlayerService s = instance;
-        if (s == null) return;
-        Cache.clear(PlayerService.instance.getApplicationContext());
+        if (s == null || title == null || title.isEmpty()) return;
+        Context ctx = s.getApplicationContext();
+        LyricsRepository.invalidate(ctx, title, artist, album, durationMs);
         s.songKey = "";
+        lyrics = null;
+        status = "Matching lyrics…";
         s.requestTick();
         s.handler.postDelayed(s::poll, 300);
     }
@@ -257,9 +273,20 @@ public class PlayerService extends Service {
             } catch (Exception e) {
                 Log.w(TAG, "poll failed", e);
             }
-            handler.postDelayed(this, 400);
+            handler.postDelayed(this, tickDelay());
         }
     };
+
+    /**
+     * Poll tightly while a song plays, but idle slowly when paused or the screen is off:
+     * a 400 ms MediaSession poll running all day is pure battery drain.
+     */
+    private long tickDelay() {
+        if (playing) return 400;
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        boolean screenOn = pm == null || pm.isInteractive();
+        return screenOn ? 1200 : 3000;
+    }
 
     public void requestTick() {
         if (handler != null) handler.post(() -> {
@@ -481,6 +508,22 @@ public class PlayerService extends Service {
         }
     }
 
+    /** The lyric line playing right now, for the notification shade. */
+    private String currentLyricLine() {
+        Lyrics l = lyrics;
+        if (l == null || l.lines.isEmpty()) return "";
+        long pos = positionMs() - effectiveOffset(this);
+        int i = l.indexAt(pos);
+        if (i < 0) i = 0;
+        return l.lines.get(Math.min(i, l.lines.size() - 1)).text;
+    }
+
+    private PendingIntent serviceAction(String action) {
+        Intent i = new Intent(this, PlayerService.class).setAction(action);
+        return PendingIntent.getService(this, action.hashCode(), i,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    }
+
     private Notification buildNotification() {
         NotificationManager nm = getSystemService(NotificationManager.class);
         if (nm.getNotificationChannel(CHANNEL_ID) == null) {
@@ -493,20 +536,30 @@ public class PlayerService extends Service {
         open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent pi = PendingIntent.getActivity(this, 0, open,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        String text = title.isEmpty() ? "Waiting for a song…" : title + (artist.isEmpty() ? "" : " — " + artist);
+        String line = currentLyricLine();
+        String meta = title.isEmpty() ? "Waiting for a song…"
+                : title + (artist.isEmpty() ? "" : " — " + artist);
+        String big = line.isEmpty() ? meta : meta + "\n" + line;
         return new Notification.Builder(this, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_media_play)
-                .setContentTitle("Lyriu")
-                .setContentText(text)
+                .setSmallIcon(R.drawable.ic_note)
+                .setContentTitle(title.isEmpty() ? "Lyriu" : title)
+                .setContentText(line.isEmpty() ? meta : line)
+                .setStyle(new Notification.BigTextStyle().bigText(big))
+                .addAction(android.R.drawable.ic_media_previous, "Previous", serviceAction("prev"))
+                .addAction(playing ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play,
+                        "Play or pause", serviceAction("toggle"))
+                .addAction(android.R.drawable.ic_media_next, "Next", serviceAction("next"))
                 .setContentIntent(pi)
                 .setOngoing(true)
+                .setOnlyAlertOnce(true)
                 .build();
     }
 
     private String lastNotificationText = "";
 
     private void updateForeground() {
-        String text = title + "\u0000" + artist + "\u0000" + playing;
+        String text = title + "\u0000" + artist + "\u0000" + playing
+                + "\u0000" + currentLyricLine();
         if (text.equals(lastNotificationText)) return;
         lastNotificationText = text;
         try {
@@ -518,6 +571,12 @@ public class PlayerService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        String action = intent == null ? null : intent.getAction();
+        if (action != null) {
+            if ("prev".equals(action)) skipPrevious();
+            else if ("next".equals(action)) skipNext();
+            else if ("toggle".equals(action)) togglePlay();
+        }
         return START_STICKY;
     }
 

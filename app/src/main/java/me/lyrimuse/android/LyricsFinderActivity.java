@@ -98,7 +98,7 @@ public class LyricsFinderActivity extends Activity {
         if (q.isEmpty()) return;
         progress.setVisibility(View.VISIBLE);
         empty.setVisibility(View.GONE);
-        status.setText("Searching NetEase + LRCLIB…");
+        status.setText("Searching all lyric sources…");
         results.clear();
         adapter.notifyDataSetChanged();
         new Thread(() -> {

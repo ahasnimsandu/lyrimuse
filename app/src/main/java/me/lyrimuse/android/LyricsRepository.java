@@ -27,11 +27,25 @@ public final class LyricsRepository {
 
     public static Lyrics fetch(Context ctx, String title, String artist, String album, long durationMs) {
         if (title == null || title.trim().isEmpty()) return null;
-        String key = Cache.key(title, artist);
+        Lyrics.setLanguage(Prefs.lyricLanguage(ctx));
+        String key = Cache.key(ctx, title, artist, album, durationMs);
         Lyrics cached = Cache.load(ctx, key);
         if (cached != null && !cached.lines.isEmpty()) {
             if (!cached.source.contains("cached")) cached.source = cached.source + " · cached";
             return cached;
+        }
+
+        // migrate a pre-1.7 English entry (title+artist key only) instead of re-downloading it;
+        // old files were filtered, so they are only valid for the English mode
+        String legacy = Cache.legacyKey(title, artist);
+        if ("english".equals(Prefs.lyricLanguage(ctx)) && !legacy.equals(key)) {
+            Lyrics old = Cache.load(ctx, legacy);
+            if (old != null && !old.lines.isEmpty()) {
+                Cache.save(ctx, key, old);
+                Cache.delete(ctx, legacy);
+                if (!old.source.contains("cached")) old.source = old.source + " · cached";
+                return old;
+            }
         }
 
         String t = cleanTitle(title);
@@ -58,6 +72,13 @@ public final class LyricsRepository {
         if (best != null && best.lines.isEmpty()) best = null;
         if (best != null) Cache.save(ctx, key, best);
         return best;
+    }
+
+    /** Drops the cached copy of one song, so the next fetch starts from the sources. */
+    public static void invalidate(Context ctx, String title, String artist, String album, long durationMs) {
+        Lyrics.setLanguage(Prefs.lyricLanguage(ctx));
+        Cache.delete(ctx, Cache.key(ctx, title, artist, album, durationMs),
+                Cache.legacyKey(title, artist));
     }
 
     private static Lyrics await(java.util.concurrent.Future<Lyrics> future, String source) {
@@ -558,7 +579,9 @@ public final class LyricsRepository {
         } while (!t.equals(prev));
         t = t.replaceAll("(?i)\\s*-\\s*(remaster(ed)?|single|live|radio edit|deluxe|bonus track|from .*).*$", "");
         t = t.replaceAll("(?i)\\s*[|｜]\\s*(official|lyrics?|audio|video|mv|visuali[sz]er|hd|4k).*$", "");
-        t = t.replaceAll("(?i)\\s*feat\\..*$", "");
+        t = t.replaceAll("(?i)\\s+(feat\\.?|ft\\.?|featuring)\\s+.*$", "");
+        t = t.replaceAll("(?i)\\s*[-–—]\\s*(official|lyrics?|audio|video|visuali[sz]er|mv)\\s*$", "");
+        t = t.replaceAll("\\s+", " ");
         return t.trim();
     }
 
