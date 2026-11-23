@@ -28,7 +28,7 @@ public class MainActivity extends Activity {
     private BackdropView backdrop;
     private RoundedImageView coverMini, coverLarge;
     private KaraokeView karaoke;
-    private TextView title, artist, source, player, permTitle, elapsed, total, btnFloat;
+    private TextView title, artist, source, eyebrow, permTitle, elapsed, total, btnFloat;
     private ImageButton play, prev, next;
     private ProgressBar progress;
     private LinearLayout permBar;
@@ -49,7 +49,7 @@ public class MainActivity extends Activity {
         title = findViewById(R.id.title);
         artist = findViewById(R.id.artist);
         source = findViewById(R.id.source);
-        player = findViewById(R.id.player);
+        eyebrow = findViewById(R.id.eyebrow);
         permBar = findViewById(R.id.permBar);
         permTitle = findViewById(R.id.permTitle);
         progress = findViewById(R.id.progress);
@@ -70,6 +70,8 @@ public class MainActivity extends Activity {
             Toast.makeText(this, "Searching all lyric sources…", Toast.LENGTH_SHORT).show();
         });
         btnFloat.setOnClickListener(v -> toggleOverlay());
+        findViewById(R.id.btnSearch).setOnClickListener(v ->
+                startActivity(new Intent(this, LyricsFinderActivity.class)));
         findViewById(R.id.btnSettings).setOnClickListener(v ->
                 startActivity(new Intent(this, SettingsActivity.class)));
         findViewById(R.id.btnNotification).setOnClickListener(v ->
@@ -173,7 +175,9 @@ public class MainActivity extends Activity {
             title.setText(PlayerService.title.isEmpty() ? "Nothing playing" : PlayerService.title);
             artist.setText(PlayerService.artist.isEmpty() ? "Start a song in any player" : PlayerService.artist);
             source.setText(PlayerService.source.isEmpty() ? PlayerService.status : PlayerService.source);
-            player.setText(PlayerService.playerApp);
+            eyebrow.setText(PlayerService.playerApp.isEmpty()
+                    ? "NOW PLAYING"
+                    : "NOW PLAYING · " + PlayerService.playerApp.toUpperCase());
         }
         if (PlayerService.art != lastArt) {
             lastArt = PlayerService.art;

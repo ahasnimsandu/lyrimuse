@@ -39,6 +39,17 @@ Settings: keep screen on, tap-to-seek, lyric text size, sync offset, translation
 source toggles, accent-from-artwork, floating bar on/off with opacity and text size, cache size and
 clear, notification/overlay permission shortcuts.
 
+## Finding lyrics manually & live detection
+
+Tap **Find lyrics** on the player to open the finder. It shows a live-detection panel (which app is
+playing, what is attached, line vs word timing), an **Auto re-detect** switch, a *Run automatic match
+again* button, and a search box prefilled with the current song. Searching queries NetEase and
+LRCLIB concurrently and lists every version found with a `WORD`/`LINE` badge and line count — tap
+one to attach it to the current song (it is cached, so it survives song changes and restarts).
+
+When a song has no lyrics at all, the app re-runs detection a few times (15 s apart, max 4) while
+the song plays, instead of staying empty.
+
 ## Setup on the phone (one time)
 
 1. Open the app → **Grant access** → enable Lyrimuse under *Notification access*.

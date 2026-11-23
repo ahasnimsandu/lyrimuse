@@ -204,6 +204,208 @@ public final class LyricsRepository {
         return fallback;
     }
 
+    // ---------------- manual search ----------------
+
+    /** One selectable lyric result for the manual finder. */
+    public static class Candidate {
+        public String title = "";
+        public String artist = "";
+        public String album = "";
+        public String source = "";
+        public long durationMs = 0;
+        public boolean wordLevel = false;
+        public int lines = 0;
+        public Lyrics lyrics;
+
+        public String subtitle() {
+            String a = artist.isEmpty() ? "Unknown artist" : artist;
+            String dur = durationMs > 0
+                    ? String.format(Locale.ROOT, " · %d:%02d", durationMs / 60000, (durationMs / 1000) % 60)
+                    : "";
+            return a + dur + " · " + source;
+        }
+    }
+
+    /** Searches both sources for a free-text query and returns ranked, timed results. */
+    public static List<Candidate> searchCandidates(String query, long durationMs) {
+        List<Candidate> out = new ArrayList<>();
+        String q = query == null ? "" : query.trim();
+        if (q.isEmpty()) return out;
+        // both sources at once: the finder feels roughly twice as fast
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        java.util.concurrent.Future<List<Candidate>> neteaseFuture = pool.submit(() -> neteaseCandidates(q));
+        java.util.concurrent.Future<List<Candidate>> lrclibFuture = pool.submit(() -> lrclibCandidates(q));
+        try {
+            out.addAll(neteaseFuture.get(15, java.util.concurrent.TimeUnit.SECONDS));
+        } catch (Exception e) {
+            Log.w(TAG, "manual NetEase search failed: " + e);
+        }
+        try {
+            out.addAll(lrclibFuture.get(15, java.util.concurrent.TimeUnit.SECONDS));
+        } catch (Exception e) {
+            Log.w(TAG, "manual LRCLIB search failed: " + e);
+        }
+        pool.shutdownNow();
+
+        List<Candidate> unique = new ArrayList<>();
+        for (Candidate c : out) {
+            boolean dup = false;
+            for (int i = 0; i < unique.size(); i++) {
+                Candidate u = unique.get(i);
+                if (norm(u.title).equals(norm(c.title)) && norm(u.artist).equals(norm(c.artist))) {
+                    dup = true;
+                    if (c.wordLevel && !u.wordLevel) unique.set(i, c);
+                    break;
+                }
+            }
+            if (!dup) unique.add(c);
+        }
+
+        final long dur = durationMs;
+        final String queryNorm = norm(q);
+        Collections.sort(unique, (a, b) -> {
+            int c = Double.compare(score(b, queryNorm, dur), score(a, queryNorm, dur));
+            if (c != 0) return c;
+            return Integer.compare(b.lines, a.lines);
+        });
+        return unique.size() > 20 ? new ArrayList<>(unique.subList(0, 20)) : unique;
+    }
+
+    /** Ranks an exact-title match above remixes/covers; word timings and duration refine it. */
+    private static double score(Candidate c, String queryNorm, long durationMs) {
+        double s = 0;
+        String title = norm(c.title);
+        String artist = norm(c.artist);
+        if (!title.isEmpty() && queryNorm.contains(title)) s += 2.2;
+        if (!artist.isEmpty() && queryNorm.contains(artist)) s += 0.8;
+        if (c.wordLevel) s += 0.7;
+        if (durationMs > 0 && c.durationMs > 0) {
+            long diff = Math.abs(c.durationMs - durationMs);
+            if (diff <= 4000) s += 0.9;
+            else if (diff <= 15000) s += 0.4;
+            else if (diff > 60000) s -= 0.6;
+        }
+        // "(Remix)" / "(Live)" variants should not outrank the plain track
+        if (c.title.matches(".*[\\(（\\[【].*[\\)\\)\\]）】].*") && !queryNorm.contains("remix")
+                && !queryNorm.contains("live")) {
+            s -= 0.5;
+        }
+        return s;
+    }
+
+    private static List<Candidate> neteaseCandidates(String query) throws Exception {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Referer", "https://music.163.com/");
+        headers.put("Cookie", "appver=2.0.2; os=pc");
+        headers.put("Origin", "https://music.163.com");
+
+        String body = Http.get("https://music.163.com/api/search/get?s=" + enc(query)
+                + "&type=1&limit=10&offset=0", headers);
+        JSONObject root = new JSONObject(body);
+        JSONObject result = root.optJSONObject("result");
+        JSONArray songs = result == null ? null : result.optJSONArray("songs");
+        List<Candidate> list = new ArrayList<>();
+        if (songs == null) return list;
+
+        // fetch up to 8 candidate lyric files concurrently so the finder stays quick
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(4);
+        List<java.util.concurrent.Future<Lyrics>> pending = new ArrayList<>();
+        List<Integer> pendingIndex = new ArrayList<>();
+
+        for (int i = 0; i < songs.length() && list.size() < 10; i++) {
+            JSONObject s = songs.optJSONObject(i);
+            if (s == null) continue;
+            Candidate c = new Candidate();
+            c.title = s.optString("name", "");
+            StringBuilder artists = new StringBuilder();
+            JSONArray ar = s.optJSONArray("artists");
+            if (ar != null) {
+                for (int j = 0; j < ar.length(); j++) {
+                    JSONObject a = ar.optJSONObject(j);
+                    if (a == null) continue;
+                    if (artists.length() > 0) artists.append(" / ");
+                    artists.append(a.optString("name", ""));
+                }
+            }
+            c.artist = artists.toString();
+            JSONObject alb = s.optJSONObject("album");
+            c.album = alb == null ? "" : alb.optString("name", "");
+            c.durationMs = s.optLong("duration", 0);
+            c.source = "NetEase";
+            long id = s.optLong("id", -1);
+            list.add(c);
+            if (id > 0 && pending.size() < 8) {
+                final long songId = id;
+                pendingIndex.add(list.size() - 1);
+                pending.add(pool.submit(() -> fetchNeteaseLyrics(songId, headers)));
+            }
+        }
+
+        for (int i = 0; i < pending.size(); i++) {
+            try {
+                Lyrics l = pending.get(i).get(10, java.util.concurrent.TimeUnit.SECONDS);
+                if (l != null) {
+                    Candidate c = list.get(pendingIndex.get(i));
+                    c.lyrics = l;
+                    c.wordLevel = l.wordLevel;
+                    c.lines = l.lines.size();
+                    if (l.wordLevel) c.source = "NetEase · word-by-word";
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "manual lyric fetch failed: " + e);
+            }
+        }
+        pool.shutdownNow();
+        return list;
+    }
+
+    private static Lyrics fetchNeteaseLyrics(long id, Map<String, String> headers) {
+        try {
+            String l = Http.get("https://music.163.com/api/song/lyric?id=" + id
+                    + "&lv=1&kv=1&tv=-1&rv=1&yv=1&ytv=1&ytl=1", headers);
+            JSONObject lo = new JSONObject(l);
+            JSONObject yrcObj = lo.optJSONObject("yrc");
+            JSONObject lrcObj = lo.optJSONObject("lrc");
+            JSONObject tObj = lo.optJSONObject("tlyric");
+            String yrc = yrcObj == null ? "" : yrcObj.optString("lyric", "");
+            String lrc = lrcObj == null ? "" : lrcObj.optString("lyric", "");
+            String trans = tObj == null ? "" : tObj.optString("lyric", "");
+            Lyrics word = Lyrics.fromYrc(yrc, trans, "NetEase · word-by-word");
+            if (word != null && word.wordLevel) return word;
+            Lyrics line = Lyrics.fromLrc(lrc, trans, "NetEase");
+            return line != null ? line : word;
+        } catch (Exception e) {
+            Log.w(TAG, "manual lyric fetch failed for " + id + ": " + e);
+            return null;
+        }
+    }
+
+    private static List<Candidate> lrclibCandidates(String query) throws Exception {
+        JSONArray arr = new JSONArray(Http.get("https://lrclib.net/api/search?q=" + enc(query), null));
+        List<Candidate> list = new ArrayList<>();
+        for (int i = 0; i < arr.length() && list.size() < 10; i++) {
+            JSONObject o = arr.optJSONObject(i);
+            if (o == null) continue;
+            String synced = o.optString("syncedLyrics", "");
+            String plain = o.optString("plainLyrics", "");
+            if (synced.isEmpty() && plain.isEmpty()) continue;
+            Candidate c = new Candidate();
+            c.title = o.optString("trackName", "");
+            c.artist = o.optString("artistName", "");
+            c.album = o.optString("albumName", "");
+            c.durationMs = o.optLong("duration", 0) * 1000L;
+            c.lyrics = !synced.isEmpty()
+                    ? Lyrics.fromLrc(synced, null, "LRCLIB")
+                    : Lyrics.fromPlain(plain, "LRCLIB");
+            if (c.lyrics == null) continue;
+            c.lines = c.lyrics.lines.size();
+            c.wordLevel = c.lyrics.wordLevel;
+            c.source = c.wordLevel ? "LRCLIB · word-by-word" : "LRCLIB";
+            list.add(c);
+        }
+        return list;
+    }
+
     // ---------------- helpers ----------------
 
     /** Cover / karaoke / instrumental uploads carry worse or missing timings. */

@@ -26,6 +26,7 @@ public class SettingsActivity extends Activity {
         Switch netease = findViewById(R.id.swNetease);
         Switch lrclib = findViewById(R.id.swLrclib);
         Switch accent = findViewById(R.id.swAccent);
+        Switch autoRetry = findViewById(R.id.swAutoRetry);
         Switch overlay = findViewById(R.id.swOverlay);
 
         SeekBar size = findViewById(R.id.seekSize);
@@ -44,6 +45,7 @@ public class SettingsActivity extends Activity {
         netease.setChecked(Prefs.netease(this));
         lrclib.setChecked(Prefs.lrclib(this));
         accent.setChecked(Prefs.accentFromArt(this));
+        autoRetry.setChecked(Prefs.autoRetry(this));
         overlay.setChecked(Prefs.overlay(this));
 
         size.setProgress(Math.round((Prefs.textScale(this) - 0.7f) * 100));
@@ -61,6 +63,7 @@ public class SettingsActivity extends Activity {
         netease.setOnCheckedChangeListener((b, on) -> Prefs.setNetease(this, on));
         lrclib.setOnCheckedChangeListener((b, on) -> Prefs.setLrclib(this, on));
         accent.setOnCheckedChangeListener((b, on) -> Prefs.setAccentFromArt(this, on));
+        autoRetry.setOnCheckedChangeListener((b, on) -> Prefs.setAutoRetry(this, on));
 
         overlay.setOnCheckedChangeListener((b, checked) -> {
             Prefs.setOverlay(this, checked);

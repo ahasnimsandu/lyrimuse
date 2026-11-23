@@ -30,6 +30,12 @@
             android:exported="false"
             android:label="Settings" />
 
+        <activity
+            android:name=".LyricsFinderActivity"
+            android:exported="false"
+            android:label="Find lyrics"
+            android:windowSoftInputMode="adjustResize" />
+
         <service
             android:name=".MediaListenerService"
             android:exported="true"

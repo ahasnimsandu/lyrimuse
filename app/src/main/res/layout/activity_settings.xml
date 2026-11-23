@@ -121,6 +121,14 @@
                 android:textSize="13sp" />
 
             <Switch
+                android:id="@+id/swAutoRetry"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Auto re-detect missing lyrics"
+                android:textColor="#E9ECF3"
+                android:textSize="13sp" />
+
+            <Switch
                 android:id="@+id/swNetease"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

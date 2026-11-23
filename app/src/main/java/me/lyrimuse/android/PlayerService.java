@@ -61,6 +61,8 @@ public class PlayerService extends Service {
     private ExecutorService io;
     private int generation = 0;
     private String songKey = "";
+    private long lastRetryAt = 0;
+    private int retryCount = 0;
 
     public static long positionMs() {
         long p = lastPos;
@@ -128,6 +130,19 @@ public class PlayerService extends Service {
             s.controller.getTransportControls().skipToPrevious();
         } catch (Exception ignored) {
         }
+    }
+
+    /** Applies a manually chosen search result to the current song and caches it. */
+    public static void applyManualLyrics(LyricsRepository.Candidate c) {
+        PlayerService s = instance;
+        if (s == null || c == null || c.lyrics == null) return;
+        s.generation++;
+        lyrics = c.lyrics;
+        source = "Manual · " + c.source;
+        status = "";
+        Cache.save(s.getApplicationContext(), Cache.key(title, artist), c.lyrics);
+        Log.i(TAG, "manual lyrics applied: " + c.title + " / " + c.artist + " (" + c.source + ")");
+        s.updateForeground();
     }
 
     /** Force a fresh lyric lookup for the current song (ignores the offline cache). */
@@ -284,9 +299,18 @@ public class PlayerService extends Service {
             lyrics = null;
             source = "";
             status = "Matching lyrics…";
+            retryCount = 0;
+            lastRetryAt = 0;
             fetchLyrics(newTitle, newArtist, newAlbum, newDuration);
-        } else if (lyrics == null && !newTitle.isEmpty() && "No lyrics found".equals(status)) {
-            // retry once the app regains a network or after a player switch
+        } else if (lyrics == null && !newTitle.isEmpty() && "No lyrics found".equals(status)
+                && Prefs.autoRetry(this) && retryCount < 4
+                && SystemClock.elapsedRealtime() - lastRetryAt > 15000) {
+            // live detection: sources sometimes publish a match a little later
+            retryCount++;
+            lastRetryAt = SystemClock.elapsedRealtime();
+            status = "Re-checking lyrics…";
+            Log.i(TAG, "auto re-detect #" + retryCount + " for " + newTitle);
+            fetchLyrics(newTitle, newArtist, newAlbum, newDuration);
         }
         if (lyrics == null && status.isEmpty()) status = "Matching lyrics…";
         updateForeground();

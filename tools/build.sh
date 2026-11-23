@@ -43,8 +43,8 @@ PY
   --java "$OUT/gen" \
   --min-sdk-version 26 \
   --target-sdk-version 34 \
-  --version-code 2 \
-  --version-name 1.1.0 \
+  --version-code 3 \
+  --version-name 1.2.0 \
   --auto-add-overlay
 
 echo "[3/6] javac"
@@ -56,24 +56,19 @@ find "$OUT/classes" -name '*.class' -print0 | xargs -0 "$D8" \
   --lib "$ANDROID_JAR" --min-api 26 --output "$OUT/dex"
 
 echo "[5/6] package"
-# Append classes.dex without recompressing: resources.arsc must stay STORED
-# (uncompressed) and 4-byte aligned for targetSdk 30+.
-python3 - "$OUT/base.apk" "$OUT/dex/classes.dex" <<'PY'
-import sys, zipfile
-apk, dex = sys.argv[1], sys.argv[2]
-with zipfile.ZipFile(apk, "a", zipfile.ZIP_DEFLATED) as z:
-    z.write(dex, "classes.dex")
-with zipfile.ZipFile(apk) as z:
-    arsc = z.getinfo("resources.arsc")
-    print("resources.arsc stored=%s offset=%d aligned=%s" % (
-        arsc.compress_type == zipfile.ZIP_STORED, arsc.header_offset,
-        arsc.header_offset % 4 == 0))
-PY
+python3 "$ROOT/tools/package.py" "$OUT/base.apk" "$OUT/dex/classes.dex" "$OUT/unsigned.apk"
 
 echo "[6/6] sign"
 javac -nowarn -classpath "$APKSIG_JAR" -d "$OUT/sign" "$ROOT/tools/Sign.java"
 java -classpath "$APKSIG_JAR:$OUT/sign" Sign \
-  "$OUT/base.apk" "$ROOT/Lyrimuse.apk" "$KEYSTORE" "$KEYSTORE_PASS" "$KEYSTORE_ALIAS"
+  "$OUT/unsigned.apk" "$ROOT/Lyrimuse.apk" "$KEYSTORE" "$KEYSTORE_PASS" "$KEYSTORE_ALIAS"
+python3 - "$ROOT/Lyrimuse.apk" <<'PY'
+import sys, zipfile
+with zipfile.ZipFile(sys.argv[1]) as z:
+    a = z.getinfo("resources.arsc")
+    print("signed apk: resources.arsc stored=%s aligned=%s" % (
+        a.compress_type == zipfile.ZIP_STORED, a.header_offset % 4 == 0))
+PY
 
 ls -lh "$ROOT/Lyrimuse.apk"
 echo "APK ready: $ROOT/Lyrimuse.apk"

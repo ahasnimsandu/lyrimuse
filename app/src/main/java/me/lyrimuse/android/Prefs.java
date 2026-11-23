@@ -86,6 +86,14 @@ public final class Prefs {
         sp(c).edit().putBoolean("sourceLrclib", on).apply();
     }
 
+    public static boolean autoRetry(Context c) {
+        return sp(c).getBoolean("autoRetry", true);
+    }
+
+    public static void setAutoRetry(Context c, boolean on) {
+        sp(c).edit().putBoolean("autoRetry", on).apply();
+    }
+
     public static boolean accentFromArt(Context c) {
         return sp(c).getBoolean("accentFromArt", true);
     }
