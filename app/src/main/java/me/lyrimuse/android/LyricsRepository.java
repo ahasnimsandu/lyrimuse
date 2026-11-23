@@ -54,7 +54,9 @@ public final class LyricsRepository {
         Lyrics best = pick(pick(netease, lrclib), qq);
         Log.i(TAG, "match '" + t + "' by '" + a + "' -> netease=" + describe(netease)
                 + " lrclib=" + describe(lrclib) + " qq=" + describe(qq) + " best=" + describe(best));
-        if (best != null && !best.lines.isEmpty()) Cache.save(ctx, key, best);
+        // English-only filtering can empty a foreign lyric file completely
+        if (best != null && best.lines.isEmpty()) best = null;
+        if (best != null) Cache.save(ctx, key, best);
         return best;
     }
 
@@ -265,7 +267,7 @@ public final class LyricsRepository {
             String trans = tObj == null ? "" : tObj.optString("lyric", "");
 
             Lyrics candidate = Lyrics.fromYrc(yrc, trans, "NetEase · word-by-word");
-            if (candidate != null && candidate.wordLevel) return candidate;
+            if (candidate != null && candidate.wordLevel && !candidate.lines.isEmpty()) return candidate;
             if (fallback == null) {
                 fallback = Lyrics.fromLrc(lrc, trans, "NetEase");
                 if (fallback == null) fallback = candidate;
@@ -447,7 +449,7 @@ public final class LyricsRepository {
             String lrc = lrcObj == null ? "" : lrcObj.optString("lyric", "");
             String trans = tObj == null ? "" : tObj.optString("lyric", "");
             Lyrics word = Lyrics.fromYrc(yrc, trans, "NetEase · word-by-word");
-            if (word != null && word.wordLevel) return word;
+            if (word != null && word.wordLevel && !word.lines.isEmpty()) return word;
             Lyrics line = Lyrics.fromLrc(lrc, trans, "NetEase");
             return line != null ? line : word;
         } catch (Exception e) {

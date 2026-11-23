@@ -92,16 +92,84 @@ public class Lyrics {
             long next = i + 1 < lines.size() ? lines.get(i + 1).start : l.start + 6000;
             if (l.end <= l.start) l.end = Math.max(l.start + 700, next);
         }
-        applyPronunciation();
     }
 
-    /** Korean lines get a romanised reading underneath, Apple Music style. */
-    public void applyPronunciation() {
+    /**
+     * English-only presentation, the app default: no Chinese, Japanese, Korean, Cyrillic,
+     * Thai or Arabic ever reaches the screen. Korean is shown as its romanised reading, a
+     * foreign original is replaced by its English translation, a foreign translation under
+     * an English line is dropped, and a line with no readable English version is removed.
+     * Idempotent, and safe to run on cached lyrics from older builds.
+     */
+    public void applyEnglish() {
+        List<Line> keep = new ArrayList<>();
         for (Line l : lines) {
-            if (Romanizer.hasHangul(l.text)) {
-                l.trans = Romanizer.romanize(l.text);
+            String text = l.text == null ? "" : l.text;
+            String trans = l.trans == null ? "" : l.trans;
+            if (Romanizer.hasHangul(text)) {
+                String roman = Romanizer.romanize(text).replaceAll("\\s+", " ").trim();
+                if (!roman.isEmpty()) text = roman;
+                trans = "";
             }
+            if (hasForeignScript(text)) {
+                if (!isEnglish(trans)) continue;   // no English version of this line
+                text = trans;
+                trans = "";
+            } else if (hasForeignScript(trans)) {
+                trans = "";                        // e.g. a Chinese translation of an English line
+            }
+            text = text.trim();
+            if (text.isEmpty()) continue;
+            l.text = text;
+            l.trans = trans.trim();
+            keep.add(l);
         }
+        if (keep.size() != lines.size()) {
+            lines.clear();
+            lines.addAll(keep);
+        }
+    }
+
+    /** True when the text is written in a script that is not Latin (punctuation ignored). */
+    private static boolean hasForeignScript(String s) {
+        if (s == null || s.isEmpty()) return false;
+        int foreign = 0;
+        int latin = 0;
+        for (int i = 0; i < s.length(); ) {
+            int cp = s.codePointAt(i);
+            i += Character.charCount(cp);
+            if (isForeignLetter(cp)) foreign++;
+            else if (Character.isLetter(cp)) latin++;
+        }
+        return foreign >= 2 || (foreign == 1 && latin == 0);
+    }
+
+    /** A usable English line: has letters and not a single foreign character. */
+    private static boolean isEnglish(String s) {
+        if (s == null) return false;
+        int letters = 0;
+        for (int i = 0; i < s.length(); ) {
+            int cp = s.codePointAt(i);
+            i += Character.charCount(cp);
+            if (isForeignLetter(cp)) return false;
+            if (Character.isLetter(cp)) letters++;
+        }
+        return letters > 0;
+    }
+
+    private static boolean isForeignLetter(int cp) {
+        return (cp >= 0x3040 && cp <= 0x30FF)     // hiragana + katakana
+                || (cp >= 0x3400 && cp <= 0x4DBF)  // CJK extension A
+                || (cp >= 0x4E00 && cp <= 0x9FFF)  // CJK unified ideographs
+                || (cp >= 0xAC00 && cp <= 0xD7A3)  // hangul syllables
+                || (cp >= 0x1100 && cp <= 0x11FF)  // hangul jamo
+                || (cp >= 0x3130 && cp <= 0x318F)  // hangul compatibility jamo
+                || (cp >= 0xF900 && cp <= 0xFAFF)  // CJK compatibility ideographs
+                || (cp >= 0x0400 && cp <= 0x052F)  // cyrillic
+                || (cp >= 0x0590 && cp <= 0x05FF)  // hebrew
+                || (cp >= 0x0600 && cp <= 0x06FF)  // arabic
+                || (cp >= 0x0900 && cp <= 0x097F)  // devanagari
+                || (cp >= 0x0E00 && cp <= 0x0E7F);  // thai
     }
 
     /** Parses standard or enhanced LRC, merging translation lines when supplied. */
@@ -188,9 +256,8 @@ public class Lyrics {
         if (translation != null && !translation.trim().isEmpty()) {
             out.attachTranslation(translation);
         }
-        // translations from CJK sources are usually Chinese; Korean songs read better romanised
-        out.applyPronunciation();
-        return out;
+        out.applyEnglish();
+        return out.lines.isEmpty() ? null : out;
     }
 
     /** Parses NetEase YRC (word-by-word) with optional translation. */
@@ -229,8 +296,8 @@ public class Lyrics {
         if (out.lines.isEmpty()) return null;
         out.finish();
         if (translation != null && !translation.trim().isEmpty()) out.attachTranslation(translation);
-        out.applyPronunciation();
-        return out;
+        out.applyEnglish();
+        return out.lines.isEmpty() ? null : out;
     }
 
     /** Unsynchronised plain lyrics (still shown, just without timings). */
@@ -246,6 +313,7 @@ public class Lyrics {
             l.end = 0;
             out.lines.add(l);
         }
+        out.applyEnglish();
         return out.lines.isEmpty() ? null : out;
     }
 
@@ -331,7 +399,7 @@ public class Lyrics {
             }
             out.lines.add(l);
         }
-        out.applyPronunciation();
-        return out;
+        out.applyEnglish();
+        return out.lines.isEmpty() ? null : out;
     }
 }

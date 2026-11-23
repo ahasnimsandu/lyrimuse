@@ -37,6 +37,7 @@ public class MainActivity extends Activity {
     private LinearLayout controlsCard;
     private String lastMeta = "";
     private Bitmap lastArt;
+    private Boolean lastPlaying;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -215,7 +216,10 @@ public class MainActivity extends Activity {
             }
         }
 
-        play.setImageResource(PlayerService.playing ? R.drawable.ic_pause : R.drawable.ic_play);
+        if (lastPlaying == null || lastPlaying != PlayerService.playing) {
+            lastPlaying = PlayerService.playing;
+            play.setImageResource(PlayerService.playing ? R.drawable.ic_pause : R.drawable.ic_play);
+        }
 
         long pos = PlayerService.positionMs();
         long dur = PlayerService.duration();

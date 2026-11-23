@@ -69,8 +69,10 @@ public class PlayerService extends Service {
     public static long positionMs() {
         long p = lastPos;
         if (playing) {
-            p += (long) ((SystemClock.elapsedRealtime() - lastPosAt) * speed);
+            long elapsed = SystemClock.elapsedRealtime() - lastPosAt;
+            if (elapsed > 0) p += (long) (elapsed * speed);
         }
+        if (durationMs > 0) p = Math.min(p, durationMs);
         return Math.max(0, p);
     }
 
@@ -319,6 +321,7 @@ public class PlayerService extends Service {
         String newAlbum = album;
         long newDuration = durationMs;
         Bitmap newArt = art;
+        Bitmap pendingArt = null;
 
         if (md != null) {
             String t = md.getString(MediaMetadata.METADATA_KEY_TITLE);
@@ -335,21 +338,40 @@ public class PlayerService extends Service {
             Bitmap b = md.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART);
             if (b == null) b = md.getBitmap(MediaMetadata.METADATA_KEY_ART);
             if (b == null) b = md.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON);
-            if (b != null) newArt = b;
+            if (b != null) pendingArt = b;
         }
 
         String key = newTitle.toLowerCase() + "\u0000" + newArtist.toLowerCase();
         boolean songChanged = !key.equals(songKey);
 
+        // A MediaSession marshals a brand new Bitmap object on every metadata read, so
+        // replacing the artwork on each poll restarted the cover fade and re-blurred the
+        // backdrop four times a second: that was the flickering artwork. Keep the bitmap
+        // we already show unless the track or the artwork's size actually changed.
+        if (songChanged) {
+            newArt = pendingArt;
+        } else if (pendingArt != null && (art == null
+                || pendingArt.getWidth() != art.getWidth()
+                || pendingArt.getHeight() != art.getHeight())) {
+            newArt = pendingArt;
+        }
+
         if (ps != null) {
             float sp = ps.getPlaybackSpeed();
             speed = sp > 0.1f ? sp : 1f;
-            playing = ps.getState() == PlaybackState.STATE_PLAYING;
+            boolean isPlaying = ps.getState() == PlaybackState.STATE_PLAYING;
+            playing = isPlaying;
             long p = ps.getPosition();
             long stamp = ps.getLastPositionUpdateTime();
-            if (stamp > 0) {
-                lastPos = p + (long) ((SystemClock.elapsedRealtime() - stamp) * speed);
+            if (isPlaying && stamp > 0) {
+                long elapsed = SystemClock.elapsedRealtime() - stamp;
+                // a stamp from the future (or hours ago) is a broken session, not a position
+                if (elapsed < 0 || elapsed > 60000) elapsed = 0;
+                lastPos = p + (long) (elapsed * speed);
             } else {
+                // A paused session's last-position stamp keeps ageing, so adding the
+                // elapsed time pushed the lyric position forward while the song was
+                // paused: the lyrics crept down, stopped, then crept again.
                 lastPos = p;
             }
             lastPosAt = SystemClock.elapsedRealtime();

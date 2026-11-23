@@ -61,14 +61,19 @@ the song plays, instead of staying empty.
 All enabled engines are queried in parallel, both for automatic matching and manual search; word-level
 results win, then synced lines. Each engine can be switched off in Settings.
 
-## Scrolling & Korean pronunciation
+## Language & scrolling
+
+Lyrics are **English-only** by default: no Chinese, Japanese, Korean, Cyrillic, Thai or Arabic line
+reaches the screen. Korean originals are shown as their romanised reading (Revised Romanization), a
+foreign original is replaced by its English translation when one exists, a Chinese translation under
+an English line is dropped, and a line with no English version is left out of the page. A song with no
+English lyrics at all reports *No lyrics found*.
 
 Drag the lyrics to browse them: auto-follow pauses while you scroll and for a couple of seconds
-afterwards, then eases back to the live line instead of snapping. Tapping a line seeks there.
-The fill runs at 60 fps from the playback clock, so it stays smooth between player updates.
-
-Korean lines get a romanised reading under the original (Revised Romanization), so you can sing
-along instead of reading a Chinese translation. Latin lines are left untouched.
+afterwards, then eases back to the live line instead of snapping. Tapping a line seeks there. The
+easing is time-based, so it feels the same on 60 Hz and 120 Hz screens, and the fill runs at 60 fps
+from the playback clock so it stays smooth between player updates. Pausing the song freezes the
+lyrics exactly where they are.
 
 ## Typography
 
@@ -81,7 +86,8 @@ Text size, offset, translations and tap-to-seek sit next to it.
 Everything is dark-first, and the palette is sampled from the current cover: the dominant vibrant
 hue (not the grey average) drives the play button, progress bar, sung-lyric accent, source label,
 card tint, backdrop glow and the status/navigation bars. Accent sampling can be turned off in
-Settings, which falls back to warm champagne.
+Settings, which falls back to warm champagne. Artwork is only replaced when the track actually
+changes, so the cover never re-fades and the backdrop never re-blurs in the middle of a song.
 
 ## Setup on the phone (one time)
 

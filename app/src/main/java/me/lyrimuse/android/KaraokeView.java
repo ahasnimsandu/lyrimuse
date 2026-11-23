@@ -89,8 +89,9 @@ public class KaraokeView extends View {
 
     private final Map<String, String> ellipsisCache = new HashMap<>();
     private int cacheWidth = -1;
-    private float cacheSize = -1f;
     private Lyrics cacheLyrics;
+    private long lastFrameAt = 0L;
+    private boolean hasTranslationText = false;
 
     public KaraokeView(Context c) {
         super(c);
@@ -157,7 +158,12 @@ public class KaraokeView extends View {
 
     public void setState(Lyrics l, long pos, String statusText, float textScale,
                          boolean translation, long offset) {
-        if (l != lyrics) scrollInitialised = false;
+        if (l != lyrics) {
+            scrollInitialised = false;
+            ellipsisCache.clear();
+            cacheLyrics = null;
+            hasTranslationText = hasAnyTranslation(l);
+        }
         lyrics = l;
         anchorPos = pos;
         anchorAt = SystemClock.uptimeMillis();
@@ -178,7 +184,8 @@ public class KaraokeView extends View {
     }
 
     private float lineGap() {
-        return sp(21) * scale * (showTranslation ? 2.45f : 1.95f);
+        boolean withTranslations = showTranslation && hasTranslationText;
+        return sp(21) * scale * (withTranslations ? 2.45f : 1.95f);
     }
 
     @Override
@@ -230,12 +237,17 @@ public class KaraokeView extends View {
         }
         float target = cur + frac;
 
+        long frameAt = SystemClock.uptimeMillis();
+        float dt = lastFrameAt == 0L ? 0f : Math.min(80L, frameAt - lastFrameAt) / 1000f;
+        lastFrameAt = frameAt;
+
         if (!scrollInitialised) {
             scroll = target;
             scrollInitialised = true;
         } else {
-            // the live line always eases smoothly; manual drag is added on top
-            scroll += (target - scroll) * 0.18f;
+            // time-based easing, so the glide feels the same at 60 Hz and 120 Hz
+            float k = dt <= 0f ? 0.18f : 1f - (float) Math.exp(-dt / 0.075f);
+            scroll += (target - scroll) * Math.min(0.5f, k);
         }
         if (scroll < -1f) scroll = -1f;
         if (scroll > n - 1 + 1f) scroll = n - 1 + 1f;
@@ -255,6 +267,9 @@ public class KaraokeView extends View {
             Lyrics.Line l = lyrics.lines.get(i);
             float dist = Math.abs(i - viewCenter);
             float near = Math.max(0f, 1f - dist);          // 1 on the active line, 0 elsewhere
+            // quantised grow step: a continuously changing text size thrashed the
+            // ellipsis cache and text layout every frame, which is what made scrolling lag
+            near = Math.round(near * 6f) / 6f;
             float ts = base * (0.95f + 0.17f * near);
             linePaint.setTextSize(ts);
             fillPaint.setTextSize(ts);
@@ -286,7 +301,19 @@ public class KaraokeView extends View {
             }
         }
 
-        if (playing) postInvalidateOnAnimation();
+        // keep drawing until the glide has settled (also while paused, so it stops
+        // cleanly instead of stepping once per 110 ms state update)
+        if (playing || dragging || Math.abs(target - scroll) > 0.002f) {
+            postInvalidateOnAnimation();
+        }
+    }
+
+    private boolean hasAnyTranslation(Lyrics l) {
+        if (l == null) return false;
+        for (Lyrics.Line line : l.lines) {
+            if (line.trans != null && !line.trans.trim().isEmpty()) return true;
+        }
+        return false;
     }
 
     /** Fraction (in characters) of the line that has been sung. */
@@ -324,13 +351,15 @@ public class KaraokeView extends View {
     /** Ellipsized text is cached per line, because TextUtils.ellipsize allocates on every call. */
     private String ellipsize(int index, int kind, String text, Paint p, float width) {
         if (text == null) return "";
-        if (lyrics != cacheLyrics || (int) width != cacheWidth || p.getTextSize() != cacheSize) {
+        if (lyrics != cacheLyrics || (int) width != cacheWidth) {
             ellipsisCache.clear();
             cacheLyrics = lyrics;
             cacheWidth = (int) width;
-            cacheSize = p.getTextSize();
         }
-        String key = index + "|" + kind + "|" + (int) p.getTextSize();
+        // the size is part of the key, never a reason to wipe the whole cache: the two
+        // paints (line and translation) alternate sizes within a single frame
+        int size = Math.round(p.getTextSize() * 2f);
+        String key = index + "|" + kind + "|" + size;
         String cached = ellipsisCache.get(key);
         if (cached != null) return cached;
         String result;
@@ -340,6 +369,7 @@ public class KaraokeView extends View {
             ellipsizePaint.set(p);
             result = TextUtils.ellipsize(text, ellipsizePaint, width, TextUtils.TruncateAt.END).toString();
         }
+        if (ellipsisCache.size() > 800) ellipsisCache.clear();
         ellipsisCache.put(key, result);
         return result;
     }
