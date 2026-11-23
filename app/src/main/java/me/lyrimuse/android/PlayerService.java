@@ -149,7 +149,13 @@ public class PlayerService extends Service {
         thread = new HandlerThread("lyrimuse-poll");
         thread.start();
         handler = new Handler(thread.getLooper());
-        startForeground(1, buildNotification());
+        try {
+            startForeground(1, buildNotification());
+        } catch (Exception e) {
+            // Android 14 can refuse a dataSync FGS when started from the background;
+            // the service still polls and drives the overlay.
+            Log.w(TAG, "startForeground refused: " + e);
+        }
         handler.post(tick);
     }
 
@@ -187,6 +193,7 @@ public class PlayerService extends Service {
         try {
             sessions = sessionManager.getActiveSessions(new ComponentName(this, MediaListenerService.class));
         } catch (SecurityException e) {
+            Log.w(TAG, "no media session access: " + e.getMessage());
             status = "Notification access is off";
             playing = false;
             controller = null;
@@ -206,7 +213,10 @@ public class PlayerService extends Service {
         boolean changedApp = controller == null || !next.getPackageName().equals(controller.getPackageName());
         controller = next;
         playerPackage = next.getPackageName();
-        if (changedApp) playerApp = labelFor(playerPackage);
+        if (changedApp) {
+            playerApp = labelFor(playerPackage);
+            Log.i(TAG, "player: " + playerApp + " (" + playerPackage + ")");
+        }
 
         MediaMetadata md = null;
         PlaybackState ps = null;
@@ -268,6 +278,8 @@ public class PlayerService extends Service {
         art = newArt;
 
         if (songChanged && !newTitle.isEmpty()) {
+            Log.i(TAG, "song: " + newTitle + " | " + newArtist + " | " + newAlbum
+                    + " | " + newDuration + "ms | pkg=" + playerPackage + " | playing=" + playing);
             songKey = key;
             lyrics = null;
             source = "";
@@ -328,9 +340,13 @@ public class PlayerService extends Service {
             if (result == null) {
                 source = "No lyrics found";
                 status = "No lyrics found";
+                Log.i(TAG, "lyrics: none for " + t + " | " + a + " | " + d + "ms");
             } else {
                 source = result.source;
                 status = "";
+                Log.i(TAG, "lyrics: " + result.source + " lines=" + result.lines.size()
+                        + " wordLevel=" + result.wordLevel + " synced=" + result.synced
+                        + " for " + t + " | " + a);
             }
             updateForeground();
         });
@@ -368,7 +384,12 @@ public class PlayerService extends Service {
                 .build();
     }
 
+    private String lastNotificationText = "";
+
     private void updateForeground() {
+        String text = title + "\u0000" + artist + "\u0000" + playing;
+        if (text.equals(lastNotificationText)) return;
+        lastNotificationText = text;
         try {
             NotificationManager nm = getSystemService(NotificationManager.class);
             nm.notify(1, buildNotification());

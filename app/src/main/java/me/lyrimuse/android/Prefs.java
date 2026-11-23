@@ -38,6 +38,62 @@ public final class Prefs {
         sp(c).edit().putFloat("textScale", v).apply();
     }
 
+    public static boolean keepAwake(Context c) {
+        return sp(c).getBoolean("keepAwake", false);
+    }
+
+    public static void setKeepAwake(Context c, boolean on) {
+        sp(c).edit().putBoolean("keepAwake", on).apply();
+    }
+
+    public static boolean tapSeek(Context c) {
+        return sp(c).getBoolean("tapSeek", true);
+    }
+
+    public static void setTapSeek(Context c, boolean on) {
+        sp(c).edit().putBoolean("tapSeek", on).apply();
+    }
+
+    public static int overlayOpacity(Context c) {
+        return sp(c).getInt("overlayOpacity", 235);
+    }
+
+    public static void setOverlayOpacity(Context c, int v) {
+        sp(c).edit().putInt("overlayOpacity", v).apply();
+    }
+
+    public static float overlayScale(Context c) {
+        return sp(c).getFloat("overlayScale", 1f);
+    }
+
+    public static void setOverlayScale(Context c, float v) {
+        sp(c).edit().putFloat("overlayScale", v).apply();
+    }
+
+    public static boolean netease(Context c) {
+        return sp(c).getBoolean("sourceNetease", true);
+    }
+
+    public static void setNetease(Context c, boolean on) {
+        sp(c).edit().putBoolean("sourceNetease", on).apply();
+    }
+
+    public static boolean lrclib(Context c) {
+        return sp(c).getBoolean("sourceLrclib", true);
+    }
+
+    public static void setLrclib(Context c, boolean on) {
+        sp(c).edit().putBoolean("sourceLrclib", on).apply();
+    }
+
+    public static boolean accentFromArt(Context c) {
+        return sp(c).getBoolean("accentFromArt", true);
+    }
+
+    public static void setAccentFromArt(Context c, boolean on) {
+        sp(c).edit().putBoolean("accentFromArt", on).apply();
+    }
+
     /** Positive values make lyrics appear earlier. */
     public static long offsetMs(Context c) {
         return sp(c).getLong("offsetMs", 0);

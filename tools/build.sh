@@ -43,8 +43,8 @@ PY
   --java "$OUT/gen" \
   --min-sdk-version 26 \
   --target-sdk-version 34 \
-  --version-code 1 \
-  --version-name 1.0.0 \
+  --version-code 2 \
+  --version-name 1.1.0 \
   --auto-add-overlay
 
 echo "[3/6] javac"

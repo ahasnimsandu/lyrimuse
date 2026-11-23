@@ -2,6 +2,7 @@ package me.lyrimuse.android;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
@@ -11,7 +12,7 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
-/** Settings: overlay, translation, text size, sync offset, permissions, cache. */
+/** Settings: playback, lyric sources, floating bar, storage and permissions. */
 public class SettingsActivity extends Activity {
 
     @Override
@@ -19,19 +20,47 @@ public class SettingsActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_settings);
 
-        Switch overlay = findViewById(R.id.swOverlay);
+        Switch keepAwake = findViewById(R.id.swKeepAwake);
+        Switch tapSeek = findViewById(R.id.swTapSeek);
         Switch translation = findViewById(R.id.swTranslation);
+        Switch netease = findViewById(R.id.swNetease);
+        Switch lrclib = findViewById(R.id.swLrclib);
+        Switch accent = findViewById(R.id.swAccent);
+        Switch overlay = findViewById(R.id.swOverlay);
+
         SeekBar size = findViewById(R.id.seekSize);
         SeekBar offset = findViewById(R.id.seekOffset);
         TextView offsetValue = findViewById(R.id.offsetValue);
+        SeekBar opacity = findViewById(R.id.seekOpacity);
+        TextView opacityValue = findViewById(R.id.opacityValue);
+        SeekBar overlaySize = findViewById(R.id.seekOverlaySize);
+        TextView overlaySizeValue = findViewById(R.id.overlaySizeValue);
         TextView cacheInfo = findViewById(R.id.cacheInfo);
+        TextView version = findViewById(R.id.version);
 
-        overlay.setChecked(Prefs.overlay(this));
+        keepAwake.setChecked(Prefs.keepAwake(this));
+        tapSeek.setChecked(Prefs.tapSeek(this));
         translation.setChecked(Prefs.translation(this));
+        netease.setChecked(Prefs.netease(this));
+        lrclib.setChecked(Prefs.lrclib(this));
+        accent.setChecked(Prefs.accentFromArt(this));
+        overlay.setChecked(Prefs.overlay(this));
+
         size.setProgress(Math.round((Prefs.textScale(this) - 0.7f) * 100));
         offset.setProgress((int) (Prefs.offsetMs(this) + 2000));
         offsetValue.setText(offsetLabel(Prefs.offsetMs(this)));
+        opacity.setProgress(Prefs.overlayOpacity(this));
+        opacityValue.setText(Prefs.overlayOpacity(this) + "%");
+        overlaySize.setProgress(Math.round((Prefs.overlayScale(this) - 0.7f) * 100));
+        overlaySizeValue.setText(Math.round(Prefs.overlayScale(this) * 100) + "%");
         cacheInfo.setText(Cache.count(this) + " songs cached offline");
+
+        keepAwake.setOnCheckedChangeListener((b, on) -> Prefs.setKeepAwake(this, on));
+        tapSeek.setOnCheckedChangeListener((b, on) -> Prefs.setTapSeek(this, on));
+        translation.setOnCheckedChangeListener((b, on) -> Prefs.setTranslation(this, on));
+        netease.setOnCheckedChangeListener((b, on) -> Prefs.setNetease(this, on));
+        lrclib.setOnCheckedChangeListener((b, on) -> Prefs.setLrclib(this, on));
+        accent.setOnCheckedChangeListener((b, on) -> Prefs.setAccentFromArt(this, on));
 
         overlay.setOnCheckedChangeListener((b, checked) -> {
             Prefs.setOverlay(this, checked);
@@ -43,16 +72,14 @@ public class SettingsActivity extends Activity {
             OverlayService.sync(this);
         });
 
-        translation.setOnCheckedChangeListener((b, checked) -> Prefs.setTranslation(this, checked));
-
-        size.setOnSeekBarChangeListener(new SimpleSeekListener() {
+        size.setOnSeekBarChangeListener(new SimpleSeek() {
             @Override
             public void onProgressChanged(SeekBar sb, int value, boolean fromUser) {
                 Prefs.setTextScale(SettingsActivity.this, 0.7f + value / 100f);
             }
         });
 
-        offset.setOnSeekBarChangeListener(new SimpleSeekListener() {
+        offset.setOnSeekBarChangeListener(new SimpleSeek() {
             @Override
             public void onProgressChanged(SeekBar sb, int value, boolean fromUser) {
                 long ms = value - 2000L;
@@ -61,9 +88,30 @@ public class SettingsActivity extends Activity {
             }
         });
 
-        Button notif = findViewById(R.id.btnNotification2);
-        notif.setOnClickListener(v ->
+        opacity.setOnSeekBarChangeListener(new SimpleSeek() {
+            @Override
+            public void onProgressChanged(SeekBar sb, int value, boolean fromUser) {
+                Prefs.setOverlayOpacity(SettingsActivity.this, Math.max(60, value));
+                opacityValue.setText(Math.max(60, value) + "%");
+            }
+        });
+
+        overlaySize.setOnSeekBarChangeListener(new SimpleSeek() {
+            @Override
+            public void onProgressChanged(SeekBar sb, int value, boolean fromUser) {
+                float scale = 0.7f + value / 100f;
+                Prefs.setOverlayScale(SettingsActivity.this, scale);
+                overlaySizeValue.setText(Math.round(scale * 100) + "%");
+            }
+        });
+
+        Button notification = findViewById(R.id.btnNotification2);
+        notification.setOnClickListener(v ->
                 startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
+
+        findViewById(R.id.btnOverlayPerm2).setOnClickListener(v ->
+                startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:" + getPackageName()))));
 
         findViewById(R.id.btnClearCache).setOnClickListener(v -> {
             Cache.clear(this);
@@ -72,6 +120,13 @@ public class SettingsActivity extends Activity {
         });
 
         findViewById(R.id.btnDone).setOnClickListener(v -> finish());
+
+        String v = "1.0.0";
+        try {
+            v = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (PackageManager.NameNotFoundException ignored) {
+        }
+        version.setText("Lyrimuse for Android " + v + " · GPL-3.0 · lyrics by LRCLIB & NetEase");
     }
 
     private String offsetLabel(long ms) {
@@ -79,7 +134,7 @@ public class SettingsActivity extends Activity {
         return (ms > 0 ? "+" : "") + ms + " ms";
     }
 
-    private abstract static class SimpleSeekListener implements SeekBar.OnSeekBarChangeListener {
+    private abstract static class SimpleSeek implements SeekBar.OnSeekBarChangeListener {
         @Override
         public void onStartTrackingTouch(SeekBar seekBar) {}
 

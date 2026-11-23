@@ -81,6 +81,16 @@ public class OverlayView extends View {
         listener = l;
     }
 
+    public void setTextScale(float scale) {
+        float base = sp(16) * scale;
+        if (Math.abs(text.getTextSize() - base) < 0.5f) return;
+        text.setTextSize(base);
+        fill.setTextSize(base);
+        next.setTextSize(base * 0.8f);
+        requestLayout();
+        invalidate();
+    }
+
     public void setState(Lyrics l, long pos, long offsetMs, String fallbackText) {
         lyrics = l;
         position = pos;

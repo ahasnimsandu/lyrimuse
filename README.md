@@ -27,6 +27,18 @@ and allow "install unknown apps".
 - **Offline**: every matched song is cached on disk; replay works with no network.
 - **Per-song-free global controls**: sync offset (±2 s), text size, translation toggle.
 
+## Look and feel
+
+Apple-Music-style playback screen: the cover art is blurred into a full-screen backdrop with an
+accent glow sampled from the artwork, the cover sits on top, and lyrics scroll with the active
+line growing while it fills word by word in the artwork's accent colour. Controls are Material
+vector icons (no emoji) on frosted-glass cards, with the accent colour carried through the play
+button and progress bar.
+
+Settings: keep screen on, tap-to-seek, lyric text size, sync offset, translations, NetEase/LRCLIB
+source toggles, accent-from-artwork, floating bar on/off with opacity and text size, cache size and
+clear, notification/overlay permission shortcuts.
+
 ## Setup on the phone (one time)
 
 1. Open the app → **Grant access** → enable Lyrimuse under *Notification access*.

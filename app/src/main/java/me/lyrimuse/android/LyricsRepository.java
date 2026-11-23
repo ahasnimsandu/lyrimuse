@@ -39,20 +39,31 @@ public final class LyricsRepository {
 
         Lyrics netease = null;
         Lyrics lrclib = null;
-        try {
-            netease = fromNetease(t, a, durationMs);
-        } catch (Exception e) {
-            Log.w(TAG, "NetEase lookup failed: " + e);
+        if (Prefs.netease(ctx)) {
+            try {
+                netease = fromNetease(t, a, durationMs);
+            } catch (Exception e) {
+                Log.w(TAG, "NetEase lookup failed: " + e);
+            }
         }
-        try {
-            lrclib = fromLrclib(t, a, album, durationMs);
-        } catch (Exception e) {
-            Log.w(TAG, "LRCLIB lookup failed: " + e);
+        if (Prefs.lrclib(ctx)) {
+            try {
+                lrclib = fromLrclib(t, a, album, durationMs);
+            } catch (Exception e) {
+                Log.w(TAG, "LRCLIB lookup failed: " + e);
+            }
         }
 
         Lyrics best = pick(netease, lrclib);
+        Log.i(TAG, "match '" + t + "' by '" + a + "' -> netease=" + describe(netease)
+                + " lrclib=" + describe(lrclib) + " best=" + describe(best));
         if (best != null && !best.lines.isEmpty()) Cache.save(ctx, key, best);
         return best;
+    }
+
+    private static String describe(Lyrics l) {
+        if (l == null) return "none";
+        return "[" + l.source + " lines=" + l.lines.size() + " words=" + (l.wordLevel ? "yes" : "no") + "]";
     }
 
     private static Lyrics pick(Lyrics a, Lyrics b) {

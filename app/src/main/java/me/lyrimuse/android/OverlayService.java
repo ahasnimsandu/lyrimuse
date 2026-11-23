@@ -59,6 +59,8 @@ public class OverlayService extends Service {
         lp.x = 0;
         lp.y = (int) (72 * getResources().getDisplayMetrics().density);
         lp.windowAnimations = android.R.style.Animation_Toast;
+        lp.alpha = Math.max(0.25f, Prefs.overlayOpacity(this) / 255f);
+        view.setTextScale(Prefs.overlayScale(this));
 
         view.setListener(new OverlayView.Listener() {
             @Override
@@ -99,6 +101,15 @@ public class OverlayService extends Service {
         @Override
         public void run() {
             if (view != null) {
+                float alpha = Math.max(0.25f, Prefs.overlayOpacity(OverlayService.this) / 255f);
+                if (lp != null && Math.abs(lp.alpha - alpha) > 0.01f) {
+                    lp.alpha = alpha;
+                    try {
+                        wm.updateViewLayout(view, lp);
+                    } catch (Exception ignored) {
+                    }
+                }
+                view.setTextScale(Prefs.overlayScale(OverlayService.this));
                 String fallback = PlayerService.title.isEmpty()
                         ? "Lyrimuse — waiting for a song"
                         : PlayerService.title + (PlayerService.artist.isEmpty() ? "" : " — " + PlayerService.artist);
