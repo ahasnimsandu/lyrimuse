@@ -1,0 +1,7 @@
+build/
+Lyrimuse.apk
+tools/android.jar
+tools/aapt2
+tools/apksig.jar
+local.properties
+.gradle/

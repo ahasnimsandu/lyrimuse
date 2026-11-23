@@ -1,0 +1,12 @@
+Lyrimuse for Android
+====================
+
+An independent Android port of Lyrimuse (https://github.com/Yudaotor/lyrimuse),
+the macOS menu-bar lyrics app by Yudaotor and contributors.
+
+This port is a clean-room reimplementation in Java against the Android framework:
+it shares no source code with the macOS Swift app or its Go engine. It reuses the
+same public lyric sources (LRCLIB, NetEase Cloud Music) and follows the upstream
+project's GPL-3.0 licence, which is included in LICENSE.
+
+Trademarks, player names and lyric content belong to their respective owners.

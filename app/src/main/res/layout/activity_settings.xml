@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#08080C"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Settings"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:textColor="#F2F3F7" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:text="Floating lyrics"
+            android:textSize="14sp"
+            android:textColor="#E7EAF0" />
+
+        <Switch
+            android:id="@+id/swOverlay"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Show over other apps"
+            android:textColor="#C7CBD4"
+            android:textSize="13sp" />
+
+        <Switch
+            android:id="@+id/swTranslation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Show translations"
+            android:textColor="#C7CBD4"
+            android:textSize="13sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="Lyric text size"
+            android:textSize="14sp"
+            android:textColor="#E7EAF0" />
+
+        <SeekBar
+            android:id="@+id/seekSize"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="60"
+            android:progress="30" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Sync offset"
+            android:textSize="14sp"
+            android:textColor="#E7EAF0" />
+
+        <TextView
+            android:id="@+id/offsetValue"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:textColor="#66D9A0"
+            android:text="0 ms (in sync)" />
+
+        <SeekBar
+            android:id="@+id/seekOffset"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="4000"
+            android:progress="2000" />
+
+        <TextView
+            android:id="@+id/cacheInfo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:textSize="12sp"
+            android:textColor="#9AA0AE"
+            android:text="0 songs cached offline" />
+
+        <Button
+            android:id="@+id/btnNotification2"
+            android:layout_width="match_parent"
+            android:layout_height="46dp"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/pill"
+            android:textAllCaps="false"
+            android:textColor="#E7EAF0"
+            android:textSize="13sp"
+            android:text="Notification access (required)" />
+
+        <Button
+            android:id="@+id/btnClearCache"
+            android:layout_width="match_parent"
+            android:layout_height="46dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/pill"
+            android:textAllCaps="false"
+            android:textColor="#E7EAF0"
+            android:textSize="13sp"
+            android:text="Clear offline lyrics" />
+
+        <Button
+            android:id="@+id/btnDone"
+            android:layout_width="match_parent"
+            android:layout_height="46dp"
+            android:layout_marginTop="20dp"
+            android:background="@drawable/pill_accent"
+            android:textAllCaps="false"
+            android:textColor="#B9F5D6"
+            android:textSize="13sp"
+            android:text="Done" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="Lyrics from LRCLIB and NetEase Cloud Music. Word-by-word timing when the source provides it, line timing otherwise. Every song is cached for offline playback."
+            android:textSize="11sp"
+            android:textColor="#6E7482" />
+    </LinearLayout>
+</ScrollView>
