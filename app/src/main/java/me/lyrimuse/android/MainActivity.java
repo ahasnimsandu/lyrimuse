@@ -115,6 +115,7 @@ public class MainActivity extends Activity {
             getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         }
         karaoke.setSeekEnabled(Prefs.tapSeek(this));
+        karaoke.setLyricFont(Prefs.lyricFont(this));
         backdrop.setAccentEnabled(Prefs.accentFromArt(this));
         lastMeta = "";
         updateFloatLabel();

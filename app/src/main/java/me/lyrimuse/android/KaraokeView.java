@@ -51,6 +51,7 @@ public class KaraokeView extends View {
         statusPaint.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
         statusPaint.setTextSize(sp(14));
         statusPaint.setColor(0x99FFFFFF);
+        setLayerType(LAYER_TYPE_SOFTWARE, null);
     }
 
     private float dp(float v) {
@@ -67,6 +68,14 @@ public class KaraokeView extends View {
 
     public void setSeekEnabled(boolean on) {
         seekEnabled = on;
+    }
+
+    public void setLyricFont(String key) {
+        Typeface tf = Fonts.typeface(key);
+        linePaint.setTypeface(tf);
+        fillPaint.setTypeface(Typeface.create(tf, Typeface.BOLD));
+        transPaint.setTypeface(Typeface.create(tf, Typeface.NORMAL));
+        invalidate();
     }
 
     public void setAccent(int color) {
@@ -159,7 +168,11 @@ public class KaraokeView extends View {
                 canvas.save();
                 canvas.clipRect(pad, y - ts * 1.25f, pad + fillWidth, y + ts * 0.4f);
                 fillPaint.setAlpha(isCurrent ? 255 : 210);
+                if (isCurrent) {
+                    fillPaint.setShadowLayer(ts * 0.45f, 0, 0, (accent & 0x00FFFFFF) | 0x66000000);
+                }
                 canvas.drawText(text, pad, y, fillPaint);
+                fillPaint.clearShadowLayer();
                 canvas.restore();
             }
 

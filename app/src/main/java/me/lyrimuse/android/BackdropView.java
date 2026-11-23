@@ -1,5 +1,6 @@
 package me.lyrimuse.android;
 
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -30,6 +31,8 @@ public class BackdropView extends View {
     private int accent = 0xFF7BE8B3;
     private boolean accentEnabled = true;
     private float density = 1f;
+    private float zoom = 1f;
+    private ValueAnimator zoomAnim;
 
     public BackdropView(Context c) {
         super(c);
@@ -105,7 +108,7 @@ public class BackdropView extends View {
         canvas.drawColor(BASE);
 
         if (blurred != null) {
-            float scale = Math.max(w / (float) blurred.getWidth(), h / (float) blurred.getHeight());
+            float scale = Math.max(w / (float) blurred.getWidth(), h / (float) blurred.getHeight()) * zoom;
             float dw = blurred.getWidth() * scale;
             float dh = blurred.getHeight() * scale;
             dst.set((w - dw) / 2f, (h - dh) / 2f, (w + dw) / 2f, (h + dh) / 2f);
@@ -125,5 +128,30 @@ public class BackdropView extends View {
                 new float[]{0f, 0.52f, 1f}, Shader.TileMode.CLAMP);
         scrim.setShader(lg);
         canvas.drawRect(0, 0, w, h, scrim);
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        if (zoomAnim != null) return;
+        zoomAnim = ValueAnimator.ofFloat(1f, 1.07f);
+        zoomAnim.setDuration(26000);
+        zoomAnim.setRepeatCount(ValueAnimator.INFINITE);
+        zoomAnim.setRepeatMode(ValueAnimator.REVERSE);
+        zoomAnim.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
+        zoomAnim.addUpdateListener(a -> {
+            zoom = (float) a.getAnimatedValue();
+            invalidate();
+        });
+        zoomAnim.start();
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        if (zoomAnim != null) {
+            zoomAnim.cancel();
+            zoomAnim = null;
+        }
+        super.onDetachedFromWindow();
     }
 }

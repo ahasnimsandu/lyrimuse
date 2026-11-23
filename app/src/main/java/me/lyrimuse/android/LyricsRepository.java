@@ -37,28 +37,98 @@ public final class LyricsRepository {
         String t = cleanTitle(title);
         String a = cleanArtist(artist);
 
-        Lyrics netease = null;
-        Lyrics lrclib = null;
-        if (Prefs.netease(ctx)) {
-            try {
-                netease = fromNetease(t, a, durationMs);
-            } catch (Exception e) {
-                Log.w(TAG, "NetEase lookup failed: " + e);
-            }
-        }
-        if (Prefs.lrclib(ctx)) {
-            try {
-                lrclib = fromLrclib(t, a, album, durationMs);
-            } catch (Exception e) {
-                Log.w(TAG, "LRCLIB lookup failed: " + e);
-            }
-        }
+        // query every enabled source at once; word-level results win in pick()
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(3);
+        java.util.concurrent.Future<Lyrics> neteaseFuture = Prefs.netease(ctx)
+                ? pool.submit(() -> fromNetease(t, a, durationMs)) : null;
+        java.util.concurrent.Future<Lyrics> lrclibFuture = Prefs.lrclib(ctx)
+                ? pool.submit(() -> fromLrclib(t, a, album, durationMs)) : null;
+        java.util.concurrent.Future<Lyrics> qqFuture = Prefs.qq(ctx)
+                ? pool.submit(() -> fromQQ(t, a, durationMs)) : null;
 
-        Lyrics best = pick(netease, lrclib);
+        Lyrics netease = await(neteaseFuture, "NetEase");
+        Lyrics lrclib = await(lrclibFuture, "LRCLIB");
+        Lyrics qq = await(qqFuture, "QQ Music");
+        pool.shutdownNow();
+
+        Lyrics best = pick(pick(netease, lrclib), qq);
         Log.i(TAG, "match '" + t + "' by '" + a + "' -> netease=" + describe(netease)
-                + " lrclib=" + describe(lrclib) + " best=" + describe(best));
+                + " lrclib=" + describe(lrclib) + " qq=" + describe(qq) + " best=" + describe(best));
         if (best != null && !best.lines.isEmpty()) Cache.save(ctx, key, best);
         return best;
+    }
+
+    private static Lyrics await(java.util.concurrent.Future<Lyrics> future, String source) {
+        if (future == null) return null;
+        try {
+            return future.get(15, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception e) {
+            Log.w(TAG, source + " lookup failed: " + e);
+            return null;
+        }
+    }
+
+    // ---------------- QQ Music ----------------
+
+    private static Lyrics fromQQ(String title, String artist, long durationMs) throws Exception {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Referer", "https://y.qq.com/");
+        headers.put("User-Agent", "Mozilla/5.0");
+
+        String body = Http.get("https://c.y.qq.com/soso/fcgi-bin/client_search_cp?p=1&n=10&w="
+                + enc(title + " " + artist) + "&format=json", headers);
+        JSONObject root = new JSONObject(body);
+        JSONObject data = root.optJSONObject("data");
+        JSONObject songBlock = data == null ? null : data.optJSONObject("song");
+        JSONArray list = songBlock == null ? null : songBlock.optJSONArray("list");
+        if (list == null) return null;
+
+        String bestMid = null;
+        double bestScore = 0;
+        for (int i = 0; i < list.length(); i++) {
+            JSONObject s = list.optJSONObject(i);
+            if (s == null) continue;
+            String name = s.optString("songname", "");
+            StringBuilder artists = new StringBuilder();
+            JSONArray singers = s.optJSONArray("singer");
+            if (singers != null) {
+                for (int j = 0; j < singers.length(); j++) {
+                    JSONObject singer = singers.optJSONObject(j);
+                    if (singer == null) continue;
+                    if (artists.length() > 0) artists.append(" / ");
+                    artists.append(singer.optString("name", ""));
+                }
+            }
+            double score = similarity(title, name) * 1.6 + similarity(artist, artists.toString());
+            long d = s.optLong("interval", 0) * 1000L;
+            if (durationMs > 0 && d > 0) {
+                long diff = Math.abs(d - durationMs);
+                if (diff > 15000) continue;
+                score += 0.8 - (diff / 20000.0);
+            }
+            String mid = s.optString("songmid", "");
+            if (mid.isEmpty()) continue;
+            if (score > bestScore) {
+                bestScore = score;
+                bestMid = mid;
+            }
+        }
+        if (bestMid == null || bestScore < 1.2) return null;
+
+        String lyricBody = Http.get("https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid="
+                + bestMid + "&format=json&nobase64=1&g_tk=5381", headers);
+        JSONObject lo = new JSONObject(lyricBody);
+        String lyric = unescapeHtml(lo.optString("lyric", ""));
+        String trans = unescapeHtml(lo.optString("trans", ""));
+        if (lyric.trim().isEmpty()) return null;
+        return Lyrics.fromLrc(lyric, trans, "QQ Music");
+    }
+
+    private static String unescapeHtml(String s) {
+        return s.replace("&apos;", "'").replace("&#39;", "'")
+                .replace("&quot;", "\"").replace("&lt;", "<")
+                .replace("&gt;", ">").replace("&nbsp;", " ")
+                .replace("&amp;", "&");
     }
 
     private static String describe(Lyrics l) {
@@ -232,9 +302,10 @@ public final class LyricsRepository {
         String q = query == null ? "" : query.trim();
         if (q.isEmpty()) return out;
         // both sources at once: the finder feels roughly twice as fast
-        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(3);
         java.util.concurrent.Future<List<Candidate>> neteaseFuture = pool.submit(() -> neteaseCandidates(q));
         java.util.concurrent.Future<List<Candidate>> lrclibFuture = pool.submit(() -> lrclibCandidates(q));
+        java.util.concurrent.Future<List<Candidate>> qqFuture = pool.submit(() -> qqCandidates(q));
         try {
             out.addAll(neteaseFuture.get(15, java.util.concurrent.TimeUnit.SECONDS));
         } catch (Exception e) {
@@ -244,6 +315,11 @@ public final class LyricsRepository {
             out.addAll(lrclibFuture.get(15, java.util.concurrent.TimeUnit.SECONDS));
         } catch (Exception e) {
             Log.w(TAG, "manual LRCLIB search failed: " + e);
+        }
+        try {
+            out.addAll(qqFuture.get(15, java.util.concurrent.TimeUnit.SECONDS));
+        } catch (Exception e) {
+            Log.w(TAG, "manual QQ search failed: " + e);
         }
         pool.shutdownNow();
 
@@ -378,6 +454,61 @@ public final class LyricsRepository {
             Log.w(TAG, "manual lyric fetch failed for " + id + ": " + e);
             return null;
         }
+    }
+
+    private static List<Candidate> qqCandidates(String query) throws Exception {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Referer", "https://y.qq.com/");
+        headers.put("User-Agent", "Mozilla/5.0");
+        JSONObject root = new JSONObject(Http.get(
+                "https://c.y.qq.com/soso/fcgi-bin/client_search_cp?p=1&n=10&w=" + enc(query) + "&format=json",
+                headers));
+        JSONObject data = root.optJSONObject("data");
+        JSONObject songBlock = data == null ? null : data.optJSONObject("song");
+        JSONArray list = songBlock == null ? null : songBlock.optJSONArray("list");
+        List<Candidate> out = new ArrayList<>();
+        if (list == null) return out;
+
+        for (int i = 0; i < list.length() && out.size() < 8; i++) {
+            JSONObject s = list.optJSONObject(i);
+            if (s == null) continue;
+            String mid = s.optString("songmid", "");
+            if (mid.isEmpty()) continue;
+            Candidate c = new Candidate();
+            c.title = s.optString("songname", "");
+            StringBuilder artists = new StringBuilder();
+            JSONArray singers = s.optJSONArray("singer");
+            if (singers != null) {
+                for (int j = 0; j < singers.length(); j++) {
+                    JSONObject singer = singers.optJSONObject(j);
+                    if (singer == null) continue;
+                    if (artists.length() > 0) artists.append(" / ");
+                    artists.append(singer.optString("name", ""));
+                }
+            }
+            c.artist = artists.toString();
+            c.album = s.optString("albumname", "");
+            c.durationMs = s.optLong("interval", 0) * 1000L;
+            c.source = "QQ Music";
+            try {
+                JSONObject lo = new JSONObject(Http.get(
+                        "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid=" + mid
+                                + "&format=json&nobase64=1&g_tk=5381", headers));
+                String lyric = unescapeHtml(lo.optString("lyric", ""));
+                String trans = unescapeHtml(lo.optString("trans", ""));
+                if (!lyric.trim().isEmpty()) {
+                    c.lyrics = Lyrics.fromLrc(lyric, trans, "QQ Music");
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "manual QQ lyric failed: " + e);
+            }
+            if (c.lyrics != null) {
+                c.lines = c.lyrics.lines.size();
+                c.wordLevel = c.lyrics.wordLevel;
+            }
+            out.add(c);
+        }
+        return out;
     }
 
     private static List<Candidate> lrclibCandidates(String query) throws Exception {

@@ -61,6 +61,7 @@ public class OverlayService extends Service {
         lp.windowAnimations = android.R.style.Animation_Toast;
         lp.alpha = Math.max(0.25f, Prefs.overlayOpacity(this) / 255f);
         view.setTextScale(Prefs.overlayScale(this));
+        view.setLyricFont(Prefs.lyricFont(this));
 
         view.setListener(new OverlayView.Listener() {
             @Override
@@ -110,6 +111,7 @@ public class OverlayService extends Service {
                     }
                 }
                 view.setTextScale(Prefs.overlayScale(OverlayService.this));
+                view.setLyricFont(Prefs.lyricFont(OverlayService.this));
                 String fallback = PlayerService.title.isEmpty()
                         ? "Lyrimuse — waiting for a song"
                         : PlayerService.title + (PlayerService.artist.isEmpty() ? "" : " — " + PlayerService.artist);

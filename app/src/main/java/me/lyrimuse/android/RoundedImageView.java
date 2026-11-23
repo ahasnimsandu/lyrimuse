@@ -19,6 +19,7 @@ public class RoundedImageView extends View {
     private final Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint ring = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint glyph = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF rect = new RectF();
     private final Rect src = new Rect();
     private final Path clip = new Path();
@@ -41,6 +42,9 @@ public class RoundedImageView extends View {
         ring.setColor(0x33FFFFFF);
         glyph.setColor(0x66FFFFFF);
         glyph.setStyle(Paint.Style.FILL);
+        shadowPaint.setColor(0xFF0A0B10);
+        shadowPaint.setShadowLayer(26f * c.getResources().getDisplayMetrics().density,
+                0, 12f * c.getResources().getDisplayMetrics().density, 0xB3000000);
         setLayerType(LAYER_TYPE_SOFTWARE, null);
     }
 
@@ -61,6 +65,8 @@ public class RoundedImageView extends View {
         float h = getHeight();
         float r = radiusDp * getResources().getDisplayMetrics().density;
         rect.set(0, 0, w, h);
+
+        canvas.drawRoundRect(rect, r, r, shadowPaint);
 
         clip.reset();
         clip.addRoundRect(rect, r, r, Path.Direction.CW);

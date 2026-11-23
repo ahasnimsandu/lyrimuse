@@ -43,8 +43,8 @@ PY
   --java "$OUT/gen" \
   --min-sdk-version 26 \
   --target-sdk-version 34 \
-  --version-code 3 \
-  --version-name 1.2.0 \
+  --version-code 4 \
+  --version-name 1.3.0 \
   --auto-add-overlay
 
 echo "[3/6] javac"
@@ -61,8 +61,8 @@ python3 "$ROOT/tools/package.py" "$OUT/base.apk" "$OUT/dex/classes.dex" "$OUT/un
 echo "[6/6] sign"
 javac -nowarn -classpath "$APKSIG_JAR" -d "$OUT/sign" "$ROOT/tools/Sign.java"
 java -classpath "$APKSIG_JAR:$OUT/sign" Sign \
-  "$OUT/unsigned.apk" "$ROOT/Lyrimuse.apk" "$KEYSTORE" "$KEYSTORE_PASS" "$KEYSTORE_ALIAS"
-python3 - "$ROOT/Lyrimuse.apk" <<'PY'
+  "$OUT/unsigned.apk" "$ROOT/Lyriu.apk" "$KEYSTORE" "$KEYSTORE_PASS" "$KEYSTORE_ALIAS"
+python3 - "$ROOT/Lyriu.apk" <<'PY'
 import sys, zipfile
 with zipfile.ZipFile(sys.argv[1]) as z:
     a = z.getinfo("resources.arsc")
@@ -70,5 +70,5 @@ with zipfile.ZipFile(sys.argv[1]) as z:
         a.compress_type == zipfile.ZIP_STORED, a.header_offset % 4 == 0))
 PY
 
-ls -lh "$ROOT/Lyrimuse.apk"
-echo "APK ready: $ROOT/Lyrimuse.apk"
+ls -lh "$ROOT/Lyriu.apk"
+echo "APK ready: $ROOT/Lyriu.apk"

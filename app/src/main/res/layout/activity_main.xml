@@ -15,7 +15,7 @@
         android:orientation="vertical"
         android:paddingLeft="18dp"
         android:paddingRight="18dp"
-        android:paddingTop="22dp"
+        android:paddingTop="26dp"
         android:paddingBottom="16dp">
 
         <!-- header -->
@@ -132,10 +132,10 @@
         <!-- big artwork -->
         <me.lyrimuse.android.RoundedImageView
             android:id="@+id/coverLarge"
-            android:layout_width="168dp"
-            android:layout_height="168dp"
+            android:layout_width="186dp"
+            android:layout_height="186dp"
             android:layout_gravity="center_horizontal"
-            android:layout_marginTop="16dp" />
+            android:layout_marginTop="20dp" />
 
         <TextView
             android:id="@+id/source"

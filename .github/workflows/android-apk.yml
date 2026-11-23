@@ -60,10 +60,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Lyrimuse-apk
-          path: Lyrimuse.apk
+          path: Lyriu.apk
 
       - name: Attach APK to release
         if: startsWith(github.ref, 'refs/tags/android-v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${GITHUB_REF_NAME}" Lyrimuse.apk --clobber
+        run: gh release upload "${GITHUB_REF_NAME}" Lyriu.apk --clobber

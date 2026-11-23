@@ -27,6 +27,7 @@ public class SettingsActivity extends Activity {
         Switch lrclib = findViewById(R.id.swLrclib);
         Switch accent = findViewById(R.id.swAccent);
         Switch autoRetry = findViewById(R.id.swAutoRetry);
+        Switch qq = findViewById(R.id.swQq);
         Switch overlay = findViewById(R.id.swOverlay);
 
         SeekBar size = findViewById(R.id.seekSize);
@@ -46,6 +47,7 @@ public class SettingsActivity extends Activity {
         lrclib.setChecked(Prefs.lrclib(this));
         accent.setChecked(Prefs.accentFromArt(this));
         autoRetry.setChecked(Prefs.autoRetry(this));
+        qq.setChecked(Prefs.qq(this));
         overlay.setChecked(Prefs.overlay(this));
 
         size.setProgress(Math.round((Prefs.textScale(this) - 0.7f) * 100));
@@ -64,6 +66,20 @@ public class SettingsActivity extends Activity {
         lrclib.setOnCheckedChangeListener((b, on) -> Prefs.setLrclib(this, on));
         accent.setOnCheckedChangeListener((b, on) -> Prefs.setAccentFromArt(this, on));
         autoRetry.setOnCheckedChangeListener((b, on) -> Prefs.setAutoRetry(this, on));
+        qq.setOnCheckedChangeListener((b, on) -> Prefs.setQq(this, on));
+
+        TextView fontValue = findViewById(R.id.fontValue);
+        fontValue.setText(Fonts.label(Prefs.lyricFont(this)));
+        findViewById(R.id.rowFont).setOnClickListener(v ->
+                new android.app.AlertDialog.Builder(this)
+                        .setTitle("Lyrics font")
+                        .setSingleChoiceItems(Fonts.LABELS, Fonts.indexOf(Prefs.lyricFont(this)),
+                                (dialog, which) -> {
+                                    Prefs.setLyricFont(this, Fonts.KEYS[which]);
+                                    fontValue.setText(Fonts.LABELS[which]);
+                                    dialog.dismiss();
+                                })
+                        .show());
 
         overlay.setOnCheckedChangeListener((b, checked) -> {
             Prefs.setOverlay(this, checked);
@@ -129,7 +145,7 @@ public class SettingsActivity extends Activity {
             v = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
         } catch (PackageManager.NameNotFoundException ignored) {
         }
-        version.setText("Lyrimuse for Android " + v + " · GPL-3.0 · lyrics by LRCLIB & NetEase");
+        version.setText("Lyriu " + v + " · GPL-3.0 · lyrics by NetEase, LRCLIB & QQ Music");
     }
 
     private String offsetLabel(long ms) {

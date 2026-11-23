@@ -6,7 +6,7 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-APK="${1:-$ROOT/Lyrimuse.apk}"
+APK="${1:-$ROOT/Lyriu.apk}"
 WATCH="${2:-20}"
 PKG="me.lyrimuse.android"
 

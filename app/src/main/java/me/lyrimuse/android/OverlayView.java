@@ -81,6 +81,14 @@ public class OverlayView extends View {
         listener = l;
     }
 
+    public void setLyricFont(String key) {
+        android.graphics.Typeface tf = Fonts.typeface(key);
+        text.setTypeface(tf);
+        fill.setTypeface(android.graphics.Typeface.create(tf, android.graphics.Typeface.BOLD));
+        next.setTypeface(tf);
+        invalidate();
+    }
+
     public void setTextScale(float scale) {
         float base = sp(16) * scale;
         if (Math.abs(text.getTextSize() - base) < 0.5f) return;

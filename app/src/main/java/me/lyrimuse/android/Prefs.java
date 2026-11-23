@@ -86,6 +86,22 @@ public final class Prefs {
         sp(c).edit().putBoolean("sourceLrclib", on).apply();
     }
 
+    public static boolean qq(Context c) {
+        return sp(c).getBoolean("sourceQq", true);
+    }
+
+    public static void setQq(Context c, boolean on) {
+        sp(c).edit().putBoolean("sourceQq", on).apply();
+    }
+
+    public static String lyricFont(Context c) {
+        return sp(c).getString("lyricFont", "sans");
+    }
+
+    public static void setLyricFont(Context c, String key) {
+        sp(c).edit().putString("lyricFont", key).apply();
+    }
+
     public static boolean autoRetry(Context c) {
         return sp(c).getBoolean("autoRetry", true);
     }

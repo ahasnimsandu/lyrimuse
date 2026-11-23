@@ -1,11 +1,11 @@
-# Lyrimuse for Android
+# Lyriu — Android lyrics player (port of Lyrimuse)
 
 An Android port of [Lyrimuse](https://github.com/Yudaotor/lyrimuse) (macOS menu-bar lyrics app).
 The original is Swift/SwiftUI + a Go engine — none of it runs on Android, so this is a native
 reimplementation of its core: **automatic word-by-word synced lyrics for whatever is playing,
 plus a floating overlay** like the desktop one.
 
-Install: `Lyrimuse.apk` (debug-signed) → `adb install -r Lyrimuse.apk`, or copy it to the phone
+Install: `Lyriu.apk` (debug-signed) → `adb install -r Lyriu.apk`, or copy it to the phone
 and allow "install unknown apps".
 
 ## What it does
@@ -50,6 +50,23 @@ one to attach it to the current song (it is cached, so it survives song changes 
 When a song has no lyrics at all, the app re-runs detection a few times (15 s apart, max 4) while
 the song plays, instead of staying empty.
 
+## Lyric engines
+
+| Engine | Coverage | Timing |
+| --- | --- | --- |
+| **NetEase Cloud Music** | largest CJK + international catalogue, translations (tlyric) | **word-by-word** where available |
+| **LRCLIB** | open database, strong for Western pop/rock | synced lines / plain |
+| **QQ Music** | large CJK catalogue, translations | synced lines |
+
+All enabled engines are queried in parallel, both for automatic matching and manual search; word-level
+results win, then synced lines. Each engine can be switched off in Settings.
+
+## Typography
+
+Settings → **Lyrics font** switches the player and floating overlay between Modern, Light, Serif,
+Condensed, Monospace and Heavy (system families, so the APK stays small). Text size, offset,
+translations and tap-to-seek sit next to it.
+
 ## Setup on the phone (one time)
 
 1. Open the app → **Grant access** → enable Lyrimuse under *Notification access*.
@@ -74,7 +91,7 @@ curl -L -o tools/apksig.jar \
 ```
 
 `build.sh` runs `aapt2 compile/link → javac → d8 → zip → apksig (v1+v2+v3)` and writes
-`Lyrimuse.apk`. `local.properties` / Gradle files are kept so the project also opens in
+`Lyriu.apk`. `local.properties` / Gradle files are kept so the project also opens in
 Android Studio, but the shipped APK was built with the script above.
 
 ## Signing
