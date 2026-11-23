@@ -61,6 +61,15 @@ the song plays, instead of staying empty.
 All enabled engines are queried in parallel, both for automatic matching and manual search; word-level
 results win, then synced lines. Each engine can be switched off in Settings.
 
+## Scrolling & Korean pronunciation
+
+Drag the lyrics to browse them: auto-follow pauses while you scroll and for a couple of seconds
+afterwards, then eases back to the live line instead of snapping. Tapping a line seeks there.
+The fill runs at 60 fps from the playback clock, so it stays smooth between player updates.
+
+Korean lines get a romanised reading under the original (Revised Romanization), so you can sing
+along instead of reading a Chinese translation. Latin lines are left untouched.
+
 ## Typography
 
 Settings → **Lyrics font** switches the player and floating overlay between Modern, Light, Serif,

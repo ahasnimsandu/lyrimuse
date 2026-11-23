@@ -92,6 +92,16 @@ public class Lyrics {
             long next = i + 1 < lines.size() ? lines.get(i + 1).start : l.start + 6000;
             if (l.end <= l.start) l.end = Math.max(l.start + 700, next);
         }
+        applyPronunciation();
+    }
+
+    /** Korean lines get a romanised reading underneath, Apple Music style. */
+    public void applyPronunciation() {
+        for (Line l : lines) {
+            if (Romanizer.hasHangul(l.text)) {
+                l.trans = Romanizer.romanize(l.text);
+            }
+        }
     }
 
     /** Parses standard or enhanced LRC, merging translation lines when supplied. */
@@ -178,6 +188,8 @@ public class Lyrics {
         if (translation != null && !translation.trim().isEmpty()) {
             out.attachTranslation(translation);
         }
+        // translations from CJK sources are usually Chinese; Korean songs read better romanised
+        out.applyPronunciation();
         return out;
     }
 
@@ -217,6 +229,7 @@ public class Lyrics {
         if (out.lines.isEmpty()) return null;
         out.finish();
         if (translation != null && !translation.trim().isEmpty()) out.attachTranslation(translation);
+        out.applyPronunciation();
         return out;
     }
 
@@ -297,6 +310,7 @@ public class Lyrics {
         out.source = o.optString("source", "");
         out.wordLevel = o.optBoolean("wordLevel", false);
         out.synced = o.optBoolean("synced", true);
+        // cached entries written before pronunciation support still get romanised
         JSONArray arr = o.optJSONArray("lines");
         if (arr == null) return null;
         for (int i = 0; i < arr.length(); i++) {
@@ -317,6 +331,7 @@ public class Lyrics {
             }
             out.lines.add(l);
         }
+        out.applyPronunciation();
         return out;
     }
 }

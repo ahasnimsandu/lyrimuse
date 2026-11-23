@@ -151,7 +151,7 @@ public class MainActivity extends Activity {
         }
         permBar.setVisibility(View.VISIBLE);
         if (needsListener) {
-            permTitle.setText("Grant notification access so Lyrimuse can read what every player is playing.");
+            permTitle.setText("Grant notification access so Lyriu can read what every player is playing.");
             findViewById(R.id.btnNotification).setVisibility(View.VISIBLE);
         } else {
             permTitle.setText("Allow “Display over other apps” for the floating lyric bar.");
@@ -194,6 +194,7 @@ public class MainActivity extends Activity {
 
         long pos = PlayerService.positionMs();
         long dur = PlayerService.duration();
+        karaoke.setPlaying(PlayerService.playing);
         karaoke.setState(PlayerService.lyrics, pos, PlayerService.status,
                 Prefs.textScale(this), Prefs.translation(this), Prefs.offsetMs(this));
 

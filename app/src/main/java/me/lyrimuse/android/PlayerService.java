@@ -11,6 +11,7 @@ import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.media.AudioManager;
 import android.media.MediaMetadata;
 import android.media.session.MediaController;
 import android.media.session.MediaSessionManager;
@@ -19,6 +20,7 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.SystemClock;
+import android.view.KeyEvent;
 import android.provider.Settings;
 import android.util.Log;
 
@@ -96,40 +98,111 @@ public class PlayerService extends Service {
 
     public static void seekTo(long ms) {
         PlayerService s = instance;
-        if (s != null && s.controller != null) {
+        if (s == null) return;
+        final long target = Math.max(0, ms);
+        if (s.controller != null) {
             try {
-                s.controller.getTransportControls().seekTo(Math.max(0, ms));
-            } catch (Exception ignored) {
+                s.controller.getTransportControls().seekTo(target);
+                Log.i(TAG, "seek -> " + target);
+            } catch (Exception e) {
+                Log.w(TAG, "seek failed: " + e);
+                s.handler.post(s::requestTick);
+                return;
             }
+        }
+        lastPos = target;
+        lastPosAt = SystemClock.elapsedRealtime();
+        s.handler.postDelayed(s::requestTick, 300);
+    }
+
+    /** Some players ignore TransportControls from a notification listener; media keys still work. */
+    private static void sendMediaKey(PlayerService s, int keyCode) {
+        try {
+            AudioManager am = (AudioManager) s.getSystemService(Context.AUDIO_SERVICE);
+            long now = SystemClock.uptimeMillis();
+            am.dispatchMediaKeyEvent(new KeyEvent(now, now, KeyEvent.ACTION_DOWN, keyCode, 0));
+            am.dispatchMediaKeyEvent(new KeyEvent(now, now, KeyEvent.ACTION_UP, keyCode, 0));
+        } catch (Exception e) {
+            Log.w(TAG, "media key dispatch failed: " + e);
         }
     }
 
     public static void togglePlay() {
-        PlayerService s = instance;
-        if (s == null || s.controller == null) return;
-        try {
-            if (playing) s.controller.getTransportControls().pause();
-            else s.controller.getTransportControls().play();
-        } catch (Exception ignored) {
+        final PlayerService s = instance;
+        if (s == null) return;
+        final boolean wasPlaying = playing;
+        boolean transportSent = false;
+        if (s.controller != null) {
+            try {
+                if (wasPlaying) s.controller.getTransportControls().pause();
+                else s.controller.getTransportControls().play();
+                transportSent = true;
+            } catch (Exception e) {
+                Log.w(TAG, "play/pause transport failed: " + e);
+            }
         }
+        Log.i(TAG, "togglePlay wasPlaying=" + wasPlaying + " transport=" + transportSent
+                + " controller=" + (s.controller != null));
+        final boolean expected = !wasPlaying;
+        playing = expected;
+        lastPosAt = SystemClock.elapsedRealtime();
+        s.handler.postDelayed(s::requestTick, 120);
+        if (!transportSent) {
+            sendMediaKey(s, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE);
+            s.handler.postDelayed(s::requestTick, 400);
+            return;
+        }
+        // verify the player actually reacted, then fall back to a media key
+        s.handler.postDelayed(() -> {
+            if (s.controller == null) return;
+            if (playing == wasPlaying) return;
+            PlaybackState ps = null;
+            try {
+                ps = s.controller.getPlaybackState();
+            } catch (Exception ignored) {
+            }
+            if (ps == null) return;
+            boolean nowPlaying = ps.getState() == PlaybackState.STATE_PLAYING;
+            if (nowPlaying == wasPlaying) {
+                Log.i(TAG, "transport had no effect, falling back to media key");
+                sendMediaKey(s, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE);
+                s.handler.postDelayed(s::requestTick, 350);
+            }
+        }, 650);
     }
 
     public static void skipNext() {
         PlayerService s = instance;
-        if (s == null || s.controller == null) return;
-        try {
-            s.controller.getTransportControls().skipToNext();
-        } catch (Exception ignored) {
+        if (s == null) return;
+        boolean ok = false;
+        if (s.controller != null) {
+            try {
+                s.controller.getTransportControls().skipToNext();
+                ok = true;
+            } catch (Exception e) {
+                Log.w(TAG, "skipNext transport failed: " + e);
+            }
         }
+        if (!ok) sendMediaKey(s, KeyEvent.KEYCODE_MEDIA_NEXT);
+        Log.i(TAG, "skipNext transport=" + ok);
+        s.handler.postDelayed(s::requestTick, 450);
     }
 
     public static void skipPrevious() {
         PlayerService s = instance;
-        if (s == null || s.controller == null) return;
-        try {
-            s.controller.getTransportControls().skipToPrevious();
-        } catch (Exception ignored) {
+        if (s == null) return;
+        boolean ok = false;
+        if (s.controller != null) {
+            try {
+                s.controller.getTransportControls().skipToPrevious();
+                ok = true;
+            } catch (Exception e) {
+                Log.w(TAG, "skipPrevious transport failed: " + e);
+            }
         }
+        if (!ok) sendMediaKey(s, KeyEvent.KEYCODE_MEDIA_PREVIOUS);
+        Log.i(TAG, "skipPrevious transport=" + ok);
+        s.handler.postDelayed(s::requestTick, 450);
     }
 
     /** Applies a manually chosen search result to the current song and caches it. */
@@ -401,7 +474,7 @@ public class PlayerService extends Service {
         String text = title.isEmpty() ? "Waiting for a song…" : title + (artist.isEmpty() ? "" : " — " + artist);
         return new Notification.Builder(this, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_media_play)
-                .setContentTitle("Lyrimuse")
+                .setContentTitle("Lyriu")
                 .setContentText(text)
                 .setContentIntent(pi)
                 .setOngoing(true)

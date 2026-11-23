@@ -4,43 +4,78 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Typeface;
+import android.os.SystemClock;
 import android.text.TextPaint;
 import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 
-/** Scrolling karaoke lyrics: the active line grows, fills with the art accent word by word.
- *  Modelled on the Apple Music lyrics page. */
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * Scrolling karaoke lyrics, modelled on the Apple Music lyrics page.
+ *
+ * <p>Drag to scroll: while a finger is down (and for a short while after) the view stops
+ * following the song, so it no longer snaps back. Otherwise the view eases toward the
+ * active line and inflates it, and the fill runs word by word at 60 fps by extrapolating
+ * the playback position between the player's updates.
+ */
 public class KaraokeView extends View {
 
     public interface Listener {
         void onSeek(long ms);
     }
 
+    private static final long RESUME_AFTER_DRAG_MS = 2600;
+
     private final Paint linePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint transPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint statusPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final TextPaint measurePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+    private final TextPaint ellipsizePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
 
     private Lyrics lyrics;
-    private long position;
-    private long offsetMs;
     private String status = "";
     private float scale = 1f;
     private boolean showTranslation = true;
     private boolean seekEnabled = true;
+    private boolean playing = false;
     private int accent = 0xFF7BE8B3;
     private Listener listener;
 
+    private long offsetMs = 0;
+    private long anchorPos = 0;
+    private long anchorAt = 0;
+
+    /** Scroll position in line units (line index + fraction), eased toward the song. */
+    private float scroll = 0f;
+    private boolean scrollInitialised = false;
+
+    private boolean dragging = false;
+    private boolean tapCandidate = false;
+    private float downY = 0f;
+    private float lastY = 0f;
+    private long downAt = 0L;
+    private long lastInteractionAt = 0L;
+    private final int touchSlop;
+
+    private final Map<String, String> ellipsisCache = new HashMap<>();
+    private int cacheWidth = -1;
+    private float cacheSize = -1f;
+    private Lyrics cacheLyrics;
+
     public KaraokeView(Context c) {
         super(c);
+        touchSlop = ViewConfiguration.get(c).getScaledTouchSlop();
         init();
     }
 
     public KaraokeView(Context c, AttributeSet a) {
         super(c, a);
+        touchSlop = ViewConfiguration.get(c).getScaledTouchSlop();
         init();
     }
 
@@ -51,7 +86,8 @@ public class KaraokeView extends View {
         statusPaint.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
         statusPaint.setTextSize(sp(14));
         statusPaint.setColor(0x99FFFFFF);
-        setLayerType(LAYER_TYPE_SOFTWARE, null);
+        // Hardware acceleration: a full-screen software layer (needed only for glow
+        // shadows) is what made scrolling and the word fill stutter on device.
     }
 
     private float dp(float v) {
@@ -75,6 +111,7 @@ public class KaraokeView extends View {
         linePaint.setTypeface(tf);
         fillPaint.setTypeface(Typeface.create(tf, Typeface.BOLD));
         transPaint.setTypeface(Typeface.create(tf, Typeface.NORMAL));
+        ellipsisCache.clear();
         invalidate();
     }
 
@@ -84,15 +121,34 @@ public class KaraokeView extends View {
         invalidate();
     }
 
+    public void setPlaying(boolean on) {
+        if (playing == on) return;
+        playing = on;
+        anchorPos = currentPosition();
+        anchorAt = SystemClock.uptimeMillis();
+        postInvalidateOnAnimation();
+    }
+
     public void setState(Lyrics l, long pos, String statusText, float textScale,
                          boolean translation, long offset) {
+        if (l != lyrics) scrollInitialised = false;
         lyrics = l;
-        position = pos;
+        anchorPos = pos;
+        anchorAt = SystemClock.uptimeMillis();
         status = statusText == null ? "" : statusText;
         scale = textScale;
         showTranslation = translation;
         offsetMs = offset;
+        // keep the frame loop alive while the song plays
+        if (playing) postInvalidateOnAnimation();
         invalidate();
+    }
+
+    private long currentPosition() {
+        long now = SystemClock.uptimeMillis();
+        long p = anchorPos;
+        if (playing) p += now - anchorAt;
+        return Math.max(0, p);
     }
 
     private float lineGap() {
@@ -102,8 +158,9 @@ public class KaraokeView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        float pad = dp(4);
+        float pad = dp(6);
         float width = getWidth() - pad * 2;
+        if (width <= 0) return;
 
         if (lyrics == null || lyrics.lines.isEmpty()) {
             String msg = status.isEmpty() ? "Waiting for a song…" : status;
@@ -112,21 +169,28 @@ public class KaraokeView extends View {
             return;
         }
 
-        long pos = position - offsetMs;
-
         if (!lyrics.synced) {
+            // Unsynchronised lyrics: plain scrollable text.
             float ts = sp(19) * scale;
             linePaint.setTextSize(ts);
             linePaint.setColor(0xCCFFFFFF);
-            float y = ts * 1.8f;
+            linePaint.setTextAlign(Paint.Align.LEFT);
             float gap = ts * 1.7f;
-            for (Lyrics.Line l : lyrics.lines) {
-                if (y > getHeight()) break;
-                canvas.drawText(ellipsize(l.text, linePaint, width), pad, y, linePaint);
-                y += gap;
+            float baseY = ts * 1.8f + scroll * gap;
+            int first = Math.max(0, (int) Math.floor(-baseY / gap));
+            for (int i = first; i < lyrics.lines.size(); i++) {
+                float y = baseY + i * gap;
+                if (y > getHeight() + gap) break;
+                if (y < -gap) continue;
+                String text = ellipsize(i, 0, lyrics.lines.get(i).text, linePaint, width);
+                canvas.drawText(text, pad, y, linePaint);
             }
+            if (playing) postInvalidateOnAnimation();
             return;
         }
+
+        long now = SystemClock.uptimeMillis();
+        long pos = currentPosition() - offsetMs;
 
         int n = lyrics.lines.size();
         int idx = lyrics.indexAt(pos);
@@ -135,53 +199,67 @@ public class KaraokeView extends View {
         Lyrics.Line current = lyrics.lines.get(cur);
         float frac = 0f;
         if (pos > current.start) {
-            frac = Math.min(1f, (pos - current.start) / (float) Math.max(1, current.end - current.start));
+            frac = Math.min(1f, (pos - current.start)
+                    / (float) Math.max(1, current.end - current.start));
         }
+        float target = cur + frac;
+
+        if (!scrollInitialised) {
+            scroll = target;
+            scrollInitialised = true;
+        } else if (!dragging && now - lastInteractionAt > RESUME_AFTER_DRAG_MS) {
+            // ease toward the live line instead of snapping
+            scroll += (target - scroll) * 0.18f;
+        }
+        if (scroll < -1f) scroll = -1f;
+        if (scroll > n - 1 + 1f) scroll = n - 1 + 1f;
 
         float base = sp(21) * scale;
         float gap = lineGap();
         float centerY = getHeight() * 0.40f;
+        float top = -gap * 1.5f;
+        float bottom = getHeight() + gap * 1.5f;
 
-        int from = Math.max(0, cur - 4);
-        int to = Math.min(n - 1, cur + 5);
-        for (int i = from; i <= to; i++) {
+        for (int i = 0; i < n; i++) {
+            float y = centerY + (i - scroll) * gap;
+            if (y < top) continue;
+            if (y > bottom) break;
+
             Lyrics.Line l = lyrics.lines.get(i);
-            float y = centerY + (i - cur - frac) * gap;
-            if (y < -gap || y > getHeight() + gap) continue;
-
-            boolean isCurrent = i == cur;
-            float ts = isCurrent ? base * 1.1f : base * 0.95f;
+            float dist = Math.abs(i - scroll);
+            float near = Math.max(0f, 1f - dist);          // 1 on the active line, 0 elsewhere
+            float ts = base * (0.95f + 0.17f * near);
             linePaint.setTextSize(ts);
             fillPaint.setTextSize(ts);
             transPaint.setTextSize(ts * 0.56f);
 
-            int alpha = isCurrent ? 255 : (i == cur + 1 ? 120 : 55);
+            int alpha = (int) Math.max(58, 255 - 190 * Math.min(1f, dist / 3f));
             linePaint.setColor(0xFFFFFFFF);
             linePaint.setAlpha(alpha);
+            linePaint.setTextAlign(Paint.Align.LEFT);
 
-            String text = ellipsize(l.text, linePaint, width);
+            String text = ellipsize(i, 0, l.text, linePaint, width);
             canvas.drawText(text, pad, y, linePaint);
 
+            boolean isCurrent = i == cur;
             float sungChars = sungChars(l, pos, text);
             if (sungChars > 0f) {
                 float fillWidth = measurePrefix(text, sungChars, fillPaint);
                 canvas.save();
                 canvas.clipRect(pad, y - ts * 1.25f, pad + fillWidth, y + ts * 0.4f);
-                fillPaint.setAlpha(isCurrent ? 255 : 210);
-                if (isCurrent) {
-                    fillPaint.setShadowLayer(ts * 0.45f, 0, 0, (accent & 0x00FFFFFF) | 0x66000000);
-                }
+                fillPaint.setAlpha(255);
                 canvas.drawText(text, pad, y, fillPaint);
-                fillPaint.clearShadowLayer();
                 canvas.restore();
             }
 
             if (showTranslation && l.trans != null && !l.trans.isEmpty()) {
                 transPaint.setColor(0xFFFFFFFF);
-                transPaint.setAlpha(isCurrent ? 170 : 80);
-                canvas.drawText(ellipsize(l.trans, transPaint, width), pad, y + ts * 0.9f, transPaint);
+                transPaint.setAlpha((int) Math.max(42, 170 - 120 * Math.min(1f, dist / 3f)));
+                canvas.drawText(ellipsize(i, 1, l.trans, transPaint, width), pad, y + ts * 0.92f, transPaint);
             }
         }
+
+        if (playing) postInvalidateOnAnimation();
     }
 
     /** Fraction (in characters) of the line that has been sung. */
@@ -216,27 +294,87 @@ public class KaraokeView extends View {
         return w;
     }
 
-    private String ellipsize(String text, Paint p, float width) {
+    /** Ellipsized text is cached per line, because TextUtils.ellipsize allocates on every call. */
+    private String ellipsize(int index, int kind, String text, Paint p, float width) {
         if (text == null) return "";
-        if (p.measureText(text) <= width) return text;
-        return TextUtils.ellipsize(text, new TextPaint(p), width, TextUtils.TruncateAt.END).toString();
+        if (lyrics != cacheLyrics || (int) width != cacheWidth || p.getTextSize() != cacheSize) {
+            ellipsisCache.clear();
+            cacheLyrics = lyrics;
+            cacheWidth = (int) width;
+            cacheSize = p.getTextSize();
+        }
+        String key = index + "|" + kind + "|" + (int) p.getTextSize();
+        String cached = ellipsisCache.get(key);
+        if (cached != null) return cached;
+        String result;
+        if (p.measureText(text) <= width) {
+            result = text;
+        } else {
+            ellipsizePaint.set(p);
+            result = TextUtils.ellipsize(text, ellipsizePaint, width, TextUtils.TruncateAt.END).toString();
+        }
+        ellipsisCache.put(key, result);
+        return result;
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent e) {
-        if (e.getAction() == MotionEvent.ACTION_UP && lyrics != null && lyrics.synced
-                && seekEnabled && listener != null) {
-            int n = lyrics.lines.size();
-            int idx = lyrics.indexAt(position - offsetMs);
-            if (idx < 0) idx = 0;
-            float gap = lineGap();
-            float centerY = getHeight() * 0.40f;
-            int tapped = Math.round((e.getY() - centerY) / gap) + idx;
-            if (tapped >= 0 && tapped < n && Math.abs(e.getY() - centerY) <= gap * 6f) {
-                listener.onSeek(lyrics.lines.get(tapped).start);
+        long now = SystemClock.uptimeMillis();
+        switch (e.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                downY = e.getY();
+                lastY = downY;
+                downAt = now;
+                tapCandidate = true;
+                dragging = false;
+                lastInteractionAt = now;
+                getParent().requestDisallowInterceptTouchEvent(true);
+                return true;
+
+            case MotionEvent.ACTION_MOVE: {
+                float dy = lastY - e.getY();
+                lastY = e.getY();
+                if (!dragging && Math.abs(e.getY() - downY) > touchSlop) {
+                    dragging = true;
+                    tapCandidate = false;
+                }
+                if (dragging) {
+                    float gap = lineGap();
+                    if (gap > 1f) scroll += dy / gap;
+                    lastInteractionAt = now;
+                    invalidate();
+                }
+                return true;
             }
-            return true;
+
+            case MotionEvent.ACTION_UP: {
+                lastInteractionAt = now;
+                boolean wasTap = tapCandidate && !dragging && now - downAt < 450
+                        && Math.abs(e.getY() - downY) <= touchSlop;
+                dragging = false;
+                tapCandidate = false;
+                if (wasTap && lyrics != null && lyrics.synced && seekEnabled && listener != null) {
+                    float gap = lineGap();
+                    float centerY = getHeight() * 0.40f;
+                    int tapped = Math.round((e.getY() - centerY) / gap + scroll);
+                    int n = lyrics.lines.size();
+                    if (tapped >= 0 && tapped < n) {
+                        listener.onSeek(lyrics.lines.get(tapped).start);
+                        lastInteractionAt = 0; // follow the new position straight away
+                    }
+                }
+                invalidate();
+                return true;
+            }
+
+            case MotionEvent.ACTION_CANCEL:
+                dragging = false;
+                tapCandidate = false;
+                lastInteractionAt = now;
+                return true;
+
+            default:
+                return true;
         }
-        return true;
     }
 }
